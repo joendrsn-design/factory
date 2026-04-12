@@ -17,6 +17,9 @@ on:
         required: false
         default: 'topics,research'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   batch-submit:
     name: Submit Batch — ${{ inputs.site }}
