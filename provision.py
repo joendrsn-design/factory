@@ -8,7 +8,16 @@ Usage:
     python provision.py list
     python provision.py status --site mysite
     python provision.py verify --site mysite
+    python provision.py sync-categories --site mysite
     python provision.py deactivate --site mysite
+
+Commands:
+    new              Provision a new site (creates YAML, Supabase records, categories, assets)
+    list             List all provisioned sites with category counts
+    status           Check site provisioning status (all components)
+    verify           Alias for status
+    sync-categories  Sync categories from YAML to Supabase (for existing sites)
+    deactivate       Archive site config and disable auto-publish
 
 Options:
     --site          Site ID / slug (lowercase, hyphens ok, e.g. "lamp-hill")
@@ -315,6 +324,84 @@ def insert_registry(site_key: str, frequency: str = "daily", articles: int = 1):
         return True, None
     return False, err
 
+def get_site_id_from_supabase(site_key: str):
+    """Get the UUID site_id from Supabase for a given site_key."""
+    site = check_site_in_supabase(site_key)
+    if site:
+        return site.get("id")
+    return None
+
+def get_existing_categories(site_id: str):
+    """Get existing categories for a site from Supabase."""
+    data, err = supabase_query("categories", "GET", {
+        "site_id": f"eq.{site_id}",
+        "select": "slug,name,description"
+    })
+    if data:
+        return {cat["slug"]: cat for cat in data}
+    return {}
+
+def create_categories_in_supabase(site_id: str, categories: list):
+    """
+    Create categories in Supabase for a site.
+    Returns (created_count, skipped_count, errors).
+    """
+    if not site_id:
+        return 0, 0, ["No site_id provided"]
+
+    existing = get_existing_categories(site_id)
+    created = 0
+    skipped = 0
+    errors = []
+
+    for cat in categories:
+        slug = cat.get("slug")
+        if not slug:
+            continue
+
+        if slug in existing:
+            skipped += 1
+            continue
+
+        row = {
+            "site_id": site_id,
+            "slug": slug,
+            "name": cat.get("label") or cat.get("name") or title_case(slug),
+            "description": cat.get("description"),
+        }
+
+        data, err = supabase_query("categories", "POST", data=row)
+        if data:
+            created += 1
+        else:
+            errors.append(f"{slug}: {err}")
+
+    return created, skipped, errors
+
+def sync_categories_from_yaml(site_key: str):
+    """
+    Read categories from site YAML and sync to Supabase.
+    Returns (created, skipped, errors).
+    """
+    yaml_path = SITES_DIR / f"{site_key}.yaml"
+    if not yaml_path.exists():
+        return 0, 0, [f"YAML not found: {yaml_path}"]
+
+    if not HAS_YAML:
+        return 0, 0, ["PyYAML not installed"]
+
+    data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    categories = data.get("categories", [])
+
+    if not categories:
+        return 0, 0, ["No categories in YAML"]
+
+    site_id = get_site_id_from_supabase(site_key)
+    if not site_id:
+        return 0, 0, [f"Site not found in Supabase: {site_key}"]
+
+    return create_categories_in_supabase(site_id, categories)
+
 # ── YAML generation ────────────────────────────────────────────────────────────
 
 def build_site_yaml(args, preset: dict) -> str:
@@ -452,7 +539,7 @@ def cmd_new(args):
         die(f"Unknown tier '{args.tier}'. Available: {', '.join(VALID_TIERS)}")
 
     preset = NICHE_PRESETS[args.niche]
-    results = {"yaml": False, "supabase": False, "registry": False, "assets": False}
+    results = {"yaml": False, "supabase": False, "categories": False, "registry": False, "assets": False}
 
     # Check for existing site
     yaml_path = SITES_DIR / f"{args.site}.yaml"
@@ -460,7 +547,7 @@ def cmd_new(args):
         die(f"Site config already exists: {yaml_path}\nDelete it first or use 'status' command.")
 
     # Step 1: Write factory YAML
-    section("Step 1/4 - Factory site config")
+    section("Step 1/5 - Factory site config")
     yaml_content = build_site_yaml(args, preset)
     cat_count = len(preset["categories"])
 
@@ -478,7 +565,7 @@ def cmd_new(args):
         results["yaml"] = True
 
     # Step 2: Supabase site record
-    section("Step 2/4 - Supabase site record")
+    section("Step 2/5 - Supabase site record")
     row = build_supabase_row(args, preset)
 
     if args.dry_run:
@@ -501,8 +588,33 @@ def cmd_new(args):
                 warn("Insert manually with SQL:")
                 _print_sql_fallback("sites", row)
 
-    # Step 3: Factory registry
-    section("Step 3/4 - Factory registry")
+    # Step 3: Create categories in Supabase
+    section("Step 3/5 - Supabase categories")
+
+    if args.dry_run:
+        print(f"\n  Would INSERT {cat_count} categories into Supabase:")
+        for cat in preset["categories"][:5]:
+            print(f"    - {cat['slug']}: {cat.get('label', cat['slug'])}")
+        if cat_count > 5:
+            print(f"    ... and {cat_count - 5} more")
+    else:
+        site_id = get_site_id_from_supabase(args.site)
+        if site_id:
+            created, skipped, errors = create_categories_in_supabase(site_id, preset["categories"])
+            if created > 0:
+                ok(f"Created {created} categories")
+            if skipped > 0:
+                info(f"Skipped {skipped} (already exist)")
+            if errors:
+                for err in errors[:3]:
+                    warn(err)
+            results["categories"] = (created + skipped) == len(preset["categories"])
+        else:
+            warn("Cannot create categories - site not found in Supabase")
+            warn("Run: python provision.py sync-categories --site " + args.site)
+
+    # Step 4: Factory registry
+    section("Step 4/5 - Factory registry")
 
     if args.dry_run:
         print(f"\n  Would INSERT into factory_registry:")
@@ -523,8 +635,8 @@ def cmd_new(args):
                 warn(f"Registry insert failed: {err}")
                 warn("Run manually: python registry.py register " + args.site)
 
-    # Step 4: Assets scaffold
-    section("Step 4/4 - Site assets")
+    # Step 5: Assets scaffold
+    section("Step 5/5 - Site assets")
     assets_dir = SITE_EMPIRE_ROOT / "public" / "sites" / args.site
     name = args.name or title_case(args.site)
 
@@ -659,14 +771,28 @@ def cmd_status(args):
 
     # Supabase site
     site_data = check_site_in_supabase(args.site)
+    site_id = None
     if site_data:
-        ok(f"Supabase sites: id={site_data.get('id', '?')[:8]}...")
+        site_id = site_data.get('id')
+        ok(f"Supabase sites: id={site_id[:8] if site_id else '?'}...")
         print(f"       domain      : {site_data.get('domain')}")
         print(f"       auto_publish: {site_data.get('auto_publish_enabled')}")
         print(f"       threshold   : {site_data.get('publish_threshold')}")
     else:
         fail("Supabase sites: NOT FOUND")
         all_ok = False
+
+    # Supabase categories
+    if site_id:
+        existing_cats = get_existing_categories(site_id)
+        cat_count = len(existing_cats)
+        if cat_count > 0:
+            ok(f"Supabase categories: {cat_count}")
+        else:
+            warn("Supabase categories: 0 (run sync-categories)")
+            all_ok = False
+    else:
+        info("Supabase categories: (skipped - no site)")
 
     # Factory registry
     reg_data = check_registry(args.site)
@@ -698,6 +824,55 @@ def cmd_status(args):
 def cmd_verify(args):
     """Verify all components are properly set up for a site."""
     cmd_status(args)  # Same as status for now
+
+
+def cmd_sync_categories(args):
+    """Sync categories from YAML to Supabase."""
+    section(f"Syncing categories: {args.site}")
+
+    yaml_path = SITES_DIR / f"{args.site}.yaml"
+    if not yaml_path.exists():
+        die(f"YAML not found: {yaml_path}")
+
+    if not HAS_YAML:
+        die("PyYAML not installed")
+
+    data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    categories = data.get("categories", [])
+
+    if not categories:
+        die("No categories defined in YAML")
+
+    print(f"  Found {len(categories)} categories in YAML")
+
+    site_id = get_site_id_from_supabase(args.site)
+    if not site_id:
+        die(f"Site not found in Supabase: {args.site}")
+
+    print(f"  Site ID: {site_id[:8]}...")
+
+    if args.dry_run:
+        print("\n  Would sync these categories:")
+        for cat in categories:
+            print(f"    - {cat.get('slug')}: {cat.get('label', cat.get('slug'))}")
+        return
+
+    created, skipped, errors = create_categories_in_supabase(site_id, categories)
+
+    print()
+    if created > 0:
+        ok(f"Created {created} new categories")
+    if skipped > 0:
+        info(f"Skipped {skipped} (already exist)")
+    if errors:
+        for err in errors:
+            warn(err)
+
+    print()
+    if created + skipped == len(categories):
+        print(f"  All {len(categories)} categories synced")
+    else:
+        print(f"  Synced {created + skipped}/{len(categories)} categories")
 
 
 def cmd_deactivate(args):
@@ -808,6 +983,11 @@ def main():
     p_verify = sub.add_parser("verify", help="Verify site is fully provisioned")
     p_verify.add_argument("--site", required=True)
 
+    # sync-categories
+    p_sync = sub.add_parser("sync-categories", help="Sync categories from YAML to Supabase")
+    p_sync.add_argument("--site", required=True)
+    p_sync.add_argument("--dry-run", action="store_true", help="Preview only")
+
     # deactivate
     p_deac = sub.add_parser("deactivate", help="Deactivate a site")
     p_deac.add_argument("--site", required=True)
@@ -824,6 +1004,7 @@ def main():
         "list": cmd_list,
         "status": cmd_status,
         "verify": cmd_verify,
+        "sync-categories": cmd_sync_categories,
         "deactivate": cmd_deactivate,
     }
     dispatch[args.command](args)
