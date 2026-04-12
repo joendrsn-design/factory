@@ -1,0 +1,40 @@
+# Environment
+.env
+
+# Pipeline artifacts (generated content)
+pipeline/topics/*
+pipeline/research/*
+pipeline/plans/*
+pipeline/articles/*
+pipeline/qa/*
+pipeline/failed_publishes/
+pipeline/research_vault/
+pipeline/planning/
+pipeline/write/
+
+# Keep empty folders
+!pipeline/topics/.gitkeep
+!pipeline/research/.gitkeep
+!pipeline/plans/.gitkeep
+!pipeline/articles/.gitkeep
+!pipeline/qa/.gitkeep
+
+# Logs
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Temp files
+*.txt
+*.tmp

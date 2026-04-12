@@ -1,0 +1,6 @@
+anthropic
+python-dotenv
+pyyaml
+tavily-python
+python-frontmatter
+requests

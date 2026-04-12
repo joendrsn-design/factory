@@ -1,0 +1,238 @@
+# ============================================================
+# SITE DNA: LampHill
+# ============================================================
+# Health & longevity flagship site
+# ============================================================
+
+# --- IDENTITY ---
+site_id: "lamphill"
+site_name: "LampHill"
+domain: "lamphill.com"
+tier: "flagship"
+niche: "health-longevity"
+sub_niche: "evidence-based supplements and longevity optimization"
+
+# --- CATEGORIES ---
+categories:
+  - slug: leading-voices
+    label: Leading Voices
+    description: Profiles and insights from longevity researchers and thought leaders
+  - slug: hot-cold
+    label: Hot and Cold Exposure
+    description: Sauna, cold plunge, heat/cold therapy protocols and benefits
+  - slug: fitness
+    label: Fitness
+    description: Exercise science, training protocols, and recovery
+  - slug: nutrition
+    label: Nutrition
+    description: Diet strategies, macronutrients, and metabolic health
+  - slug: supplements
+    label: Supplements
+    description: Evidence-based supplement guides, dosing, and mechanisms
+  - slug: endocrine
+    label: Endocrine System
+    description: Hormones, thyroid, testosterone, and metabolic regulation
+  - slug: labs
+    label: Labs
+    description: Blood work, biomarkers, testing protocols, and interpretation
+  - slug: sleep
+    label: Sleep
+    description: Sleep optimization, circadian health, and recovery
+  - slug: events
+    label: Events
+    description: Conferences, summits, and longevity community gatherings
+
+# --- AUDIENCE ---
+audience:
+  profile: "Health-conscious adults 30-65 seeking evidence-based longevity strategies, supplement guidance, and healthspan optimization"
+  expertise_level: "mixed"
+  intent: "learn-and-buy"
+
+# --- VOICE & TONE ---
+voice:
+  tone: "authoritative-yet-approachable"
+  persona: "physician-researcher who translates clinical evidence into actionable health strategies"
+  pov: "second_person_instructional"
+  reading_level: "grade_10"
+  style_notes: "Lead with evidence. Cite studies when possible. Soften clinical jargon without dumbing down. Warm and encouraging, never preachy or alarmist. Position reader as an informed decision-maker."
+  avoid:
+    - "clickbait health claims"
+    - "unsubstantiated miracle language"
+    - "fear-based marketing"
+    - "anti-medical-establishment rhetoric"
+    - "bro-science"
+
+# --- ARTICLE TYPES ---
+article_types:
+  - type_id: "deep_dive"
+    label: "Deep Dive"
+    description: "Long-form, research-heavy article exploring a supplement, protocol, or longevity topic in depth"
+    word_count_min: 2000
+    word_count_max: 3500
+    structure:
+      - "hook"
+      - "what_it_is"
+      - "mechanism_of_action"
+      - "clinical_evidence"
+      - "practical_application"
+      - "dosing_and_safety"
+      - "conclusion"
+    research_depth: "deep"
+    citation_required: true
+    seo_priority: "high"
+    frequency: "weekly"
+    enabled: true
+
+  - type_id: "pillar"
+    label: "Pillar Article"
+    description: "Comprehensive cornerstone content designed to rank and serve as a hub for internal links"
+    word_count_min: 3000
+    word_count_max: 5000
+    structure:
+      - "overview"
+      - "section_1"
+      - "section_2"
+      - "section_3"
+      - "section_4"
+      - "faq"
+      - "conclusion"
+    research_depth: "exhaustive"
+    citation_required: true
+    seo_priority: "high"
+    frequency: "as_needed"
+    enabled: true
+
+  - type_id: "listicle"
+    label: "Listicle"
+    description: "Scannable list-format article covering multiple items in a category"
+    word_count_min: 1200
+    word_count_max: 2000
+    structure:
+      - "intro"
+      - "items"
+      - "conclusion"
+    research_depth: "moderate"
+    citation_required: true
+    seo_priority: "medium"
+    frequency: "3x_week"
+    enabled: true
+
+  - type_id: "quick_guide"
+    label: "Quick Guide"
+    description: "Short, actionable guide on a focused topic"
+    word_count_min: 600
+    word_count_max: 1200
+    structure:
+      - "intro"
+      - "key_points"
+      - "action_steps"
+      - "summary"
+    research_depth: "moderate"
+    citation_required: false
+    seo_priority: "medium"
+    frequency: "3x_week"
+    enabled: true
+
+  - type_id: "review"
+    label: "Product Review"
+    description: "Evidence-based review of a supplement or health product"
+    word_count_min: 1500
+    word_count_max: 2500
+    structure:
+      - "intro"
+      - "product_overview"
+      - "ingredient_analysis"
+      - "clinical_evidence"
+      - "pros_cons"
+      - "verdict"
+    research_depth: "deep"
+    citation_required: true
+    seo_priority: "high"
+    frequency: "as_needed"
+    enabled: true
+
+# --- SEO ---
+seo:
+  primary_keywords:
+    - "longevity supplements"
+    - "evidence-based health"
+    - "healthspan optimization"
+    - "magnesium benefits"
+    - "anti-aging research"
+  keyword_clusters:
+    - ["magnesium", "sleep quality", "magnesium threonate", "magnesium glycinate"]
+    - ["NAD+", "NMN", "aging", "mitochondrial health"]
+    - ["lithium orotate", "neuroprotection", "brain health"]
+    - ["boron", "testosterone", "bone density"]
+    - ["longevity", "healthspan", "lifespan", "blue zones"]
+  internal_link_targets:
+    - "/supplements/magnesium"
+    - "/supplements/lithium"
+    - "/supplements/boron"
+    - "/longevity/protocols"
+  meta_description_style: "benefit-driven"
+
+# --- PRODUCT INTEGRATION ---
+products:
+  enabled: true
+  product_types:
+    - "supplements"
+    - "ebooks"
+    - "affiliate"
+  mention_rules: "Mention owned supplements naturally when relevant to the article topic. Never force a product mention. Max 1 CTA per article. Affiliate links must be clearly contextual, not listicle-stuffed."
+  affiliate_networks:
+    - "amazon"
+  owned_products:
+    - name: "LampHill Magnesium Complex"
+      url: "/shop/magnesium"
+      context: "sleep, recovery, and magnesium-related articles"
+    - name: "LampHill Lithium Orotate"
+      url: "/shop/lithium"
+      context: "brain health, neuroprotection, mood articles"
+    - name: "LampHill Boron"
+      url: "/shop/boron"
+      context: "bone health, testosterone, mineral articles"
+
+# --- QUALITY THRESHOLDS ---
+quality:
+  publish_threshold: 0.80
+  rewrite_threshold: 0.60
+  kill_threshold: 0.40
+  max_rewrites: 2
+  checks:
+    - "factual_accuracy"
+    - "readability"
+    - "voice_consistency"
+    - "seo_structure"
+    - "originality"
+    - "citation_presence"
+    - "product_mention_appropriateness"
+
+# --- RESEARCH VAULT ---
+research:
+  vault_tags:
+    - "longevity"
+    - "supplements"
+    - "clinical-evidence"
+    - "healthspan"
+  max_research_age_days: 30
+  shared_with:
+    - "better-quotidian"
+    - "daily-health-reflection"
+
+# --- OUTPUT ---
+output:
+  obsidian_folder: "sites/lamphill/articles"
+  frontmatter_template:
+    site: "lamphill"
+    status: "draft"
+    author: "LampHill Editorial"
+    category: ""
+    tags: []
+    seo_title: ""
+    meta_description: ""
+    featured_image: ""
+    date_created: ""
+    date_published: ""
+  filename_pattern: "YYYY-MM-DD-{slug}.md"
+  status_field: "draft"

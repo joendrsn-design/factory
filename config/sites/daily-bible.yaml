@@ -1,0 +1,74 @@
+# ============================================================
+# SITE DNA: Daily Bible
+# ============================================================
+
+tier: daily
+audience:
+  profile: Christians and scripture enthusiasts seeking daily engagement with Biblical
+    texts
+  expertise_level: general
+  intent: reflect
+products:
+  enabled: false
+quality:
+  publish_score: 7.0
+  rewrite_score: 5.0
+  max_rewrites: 1
+research:
+  max_research_age_days: 90
+  shared_with: []
+site_id: daily-bible
+site_name: Daily Bible
+domain: dailybible.today
+niche: philosophy-spiritual
+sub_niche: Christian scripture and daily devotional reflection
+voice:
+  tone: reverent-yet-accessible
+  persona: thoughtful companion walking through scripture, not a preacher
+  pov: second_person_reflective
+  reading_level: grade_8
+  style_notes: Ground scripture in lived experience. Avoid denominational bias. Let
+    the text breathe. Questions over answers.
+  avoid:
+  - preachy tone
+  - denominational theology
+  - prosperity gospel language
+  - culture war framing
+  - academic biblical criticism jargon
+article_types:
+- type_id: daily_reflection
+  label: Daily Scripture Reflection
+  description: Short meditation anchored in a specific passage. Context, reflection,
+    application.
+  word_count_min: 300
+  word_count_max: 600
+  frequency_per_week: 7
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+- type_id: deep_study
+  label: Scripture Deep Study
+  description: Longer exploration of a theme, book, or passage with historical context.
+  word_count_min: 1200
+  word_count_max: 2000
+  frequency_per_week: 1
+  enabled: true
+  research_depth: moderate
+  citation_required: false
+seo:
+  primary_keywords:
+  - daily bible reading
+  - scripture reflection
+  - bible devotional
+  keyword_clusters:
+  - - daily devotional
+    - morning scripture
+  - - bible study
+    - passage analysis
+output:
+  obsidian_folder: sites/daily-bible/articles
+  frontmatter_template:
+    site: daily-bible
+    status: draft
+    author: Daily Bible
+  filename_pattern: YYYY-MM-DD-{slug}.md

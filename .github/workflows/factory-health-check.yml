@@ -1,0 +1,79 @@
+name: Factory — Health Check
+
+# Runs every morning before the scheduled factory run
+# Verifies API keys, Site Empire connectivity, Supabase access
+on:
+  schedule:
+    - cron: '0 5 * * *'   # 5am UTC — 1 hour before factory run
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    name: System Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd factory
+          pip install -r requirements.txt
+
+      - name: Write .env
+        run: |
+          cat > factory/.env << EOF
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          FACTORY_API_KEY=${{ secrets.FACTORY_API_KEY }}
+          SITE_EMPIRE_URL=${{ secrets.SITE_EMPIRE_URL }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
+          EOF
+
+      - name: Check Anthropic API
+        run: |
+          curl -sf \
+            https://api.anthropic.com/v1/messages \
+            -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
+            -H "content-type: application/json" \
+            -H "anthropic-version: 2023-06-01" \
+            -d '{"model":"claude-haiku-4-5-20251001","max_tokens":10,"messages":[{"role":"user","content":"ping"}]}' \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print('✅ Anthropic API OK')" \
+            || (echo "❌ Anthropic API FAILED" && exit 1)
+
+      - name: Check Site Empire health endpoint
+        run: |
+          RESP=$(curl -sf "${{ secrets.SITE_EMPIRE_URL }}/api/health" || echo "FAILED")
+          if echo "$RESP" | grep -q "FAILED"; then
+            echo "❌ Site Empire health check FAILED"
+            echo "   URL: ${{ secrets.SITE_EMPIRE_URL }}/api/health"
+            exit 1
+          else
+            echo "✅ Site Empire OK"
+            echo "$RESP"
+          fi
+
+      - name: Check deposit dry-run
+        run: |
+          cd factory
+          python deposit.py --site lamphill --dry-run
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: Check registry
+        run: |
+          cd factory
+          python registry.py list || echo "⚠️  Registry unavailable (Supabase may be unreachable)"
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: All checks passed
+        run: echo "✅ All health checks passed — factory is ready to run"

@@ -1,0 +1,76 @@
+# ============================================================
+# SITE DNA: Magpie Diagnostics
+# ============================================================
+
+site_id: magpie-diagnostics
+site_name: Magpie Diagnostics
+domain: magpiedx.com
+tier: authority
+niche: medical-laboratory
+sub_niche: Clinical laboratory consulting, test development, and sequencing technology
+audience:
+  profile: Laboratory directors, clinical operations teams, and diagnostics companies
+    seeking consulting expertise
+  expertise_level: expert
+  intent: evaluate-and-engage
+voice:
+  tone: professional-consultative
+  persona: a laboratory medicine specialist who solves real operational problems
+  pov: first_person_authority
+  reading_level: grade_14
+  style_notes: Position as thought leadership. Every article should demonstrate domain
+    expertise and subtly signal consulting capability. Case studies, implementation
+    insights, regulatory navigation.
+  avoid:
+  - hard selling
+  - vague thought leadership
+  - generic lab content
+  - ignoring regulatory complexity
+article_types:
+- type_id: thought_leadership
+  label: Thought Leadership
+  description: Strategic analysis of laboratory medicine trends and technology decisions.
+  word_count_min: 1500
+  word_count_max: 2500
+  frequency_per_week: 1
+  enabled: true
+  research_depth: deep
+  citation_required: true
+- type_id: case_study
+  label: Implementation Insight
+  description: Practical insights from real lab implementations and technology evaluations.
+  word_count_min: 1000
+  word_count_max: 1800
+  frequency_per_week: 1
+  enabled: true
+  research_depth: moderate
+  citation_required: true
+seo:
+  primary_keywords:
+  - laboratory consulting
+  - sequencing laboratory
+  - clinical diagnostics
+  keyword_clusters:
+  - - CAP CLIA laboratory
+    - lab accreditation
+  - - NGS laboratory
+    - sequencing technology
+  - - MRD testing
+    - companion diagnostics
+products:
+  enabled: false
+quality:
+  publish_score: 8.0
+  rewrite_score: 6.0
+  max_rewrites: 2
+research:
+  max_research_age_days: 21
+  shared_with:
+  - digital-pathology-today
+output:
+  obsidian_folder: sites/magpie-diagnostics/articles
+  frontmatter_template:
+    site: magpie-diagnostics
+    status: draft
+    author: Caleb Newton, MD
+  filename_pattern: YYYY-MM-DD-{slug}.md

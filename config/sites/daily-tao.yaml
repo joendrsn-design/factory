@@ -1,0 +1,64 @@
+# ============================================================
+# SITE DNA: Daily Tao
+# ============================================================
+
+tier: daily
+audience:
+  profile: Adults seeking daily contemplative content for personal growth
+  expertise_level: general
+  intent: reflect
+products:
+  enabled: false
+quality:
+  publish_score: 7.0
+  rewrite_score: 5.0
+  max_rewrites: 1
+research:
+  max_research_age_days: 90
+  shared_with: []
+site_id: daily-tao
+site_name: Daily Tao
+domain: dailytao.today
+niche: philosophy-eastern
+sub_niche: Tao Te Ching and Taoist wisdom for contemporary stillness
+voice:
+  tone: minimalist-contemplative
+  persona: a quiet presence. Says less, means more.
+  pov: second_person_reflective
+  reading_level: grade_8
+  style_notes: The Tao that can be told is not the eternal Tao. So don't over-explain.
+    Offer a passage. Sit with it. Let silence carry the weight. Short paragraphs.
+    White space is content.
+  avoid:
+  - over-explanation
+  - new age appropriation
+  - productivity framing of stillness
+  - fortune cookie wisdom
+  - forced relevance
+article_types:
+- type_id: daily_reflection
+  label: Daily Tao Reflection
+  description: A passage from the Tao Te Ching with minimal, spacious reflection.
+  word_count_min: 200
+  word_count_max: 450
+  frequency_per_week: 7
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+seo:
+  primary_keywords:
+  - daily tao
+  - tao te ching daily
+  - taoist wisdom
+  keyword_clusters:
+  - - tao te ching reflection
+    - lao tzu
+  - - wu wei
+    - taoist philosophy
+output:
+  obsidian_folder: sites/daily-tao/articles
+  frontmatter_template:
+    site: daily-tao
+    status: draft
+    author: Daily Tao
+  filename_pattern: YYYY-MM-DD-{slug}.md

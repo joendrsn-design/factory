@@ -1,0 +1,90 @@
+# ============================================================
+# SITE DNA: Digital Pathology Today
+# ============================================================
+
+site_id: digital-pathology-today
+site_name: Digital Pathology Today
+domain: digitalpathologytoday.com
+tier: authority
+niche: medical-clinical
+sub_niche: Digital pathology, computational pathology, and laboratory medicine technology
+audience:
+  profile: Pathologists, laboratory directors, clinical informaticists, and healthtech
+    decision-makers
+  expertise_level: expert
+  intent: learn
+voice:
+  tone: clinical-authoritative
+  persona: a physician-informaticist at the intersection of pathology, AI, and laboratory
+    operations
+  pov: third_person_professional
+  reading_level: grade_14
+  style_notes: Write for peers. Clinical accuracy is non-negotiable. Reference FDA
+    clearances, CAP guidelines, and peer-reviewed literature. Technical depth without
+    jargon for jargon's sake. Practical implications for lab operations.
+  avoid:
+  - hype about AI replacing pathologists
+  - vendor press release tone
+  - oversimplifying regulatory landscape
+  - ignoring implementation challenges
+article_types:
+- type_id: deep_dive
+  label: Technical Deep Dive
+  description: In-depth analysis of a technology, regulatory development, or clinical
+    application.
+  word_count_min: 2000
+  word_count_max: 4000
+  frequency_per_week: 1
+  enabled: true
+  research_depth: exhaustive
+  citation_required: true
+- type_id: industry_analysis
+  label: Industry Analysis
+  description: Market trends, company moves, regulatory updates in digital pathology.
+  word_count_min: 1200
+  word_count_max: 2000
+  frequency_per_week: 2
+  enabled: true
+  research_depth: deep
+  citation_required: true
+- type_id: podcast_companion
+  label: Podcast Companion
+  description: Written companion to a Digital Pathology Today podcast episode.
+  word_count_min: 800
+  word_count_max: 1500
+  frequency_per_week: 1
+  enabled: true
+  research_depth: moderate
+  citation_required: true
+seo:
+  primary_keywords:
+  - digital pathology
+  - computational pathology
+  - AI pathology
+  keyword_clusters:
+  - - whole slide imaging
+    - WSI
+    - digital pathology AI
+  - - CAP accreditation
+    - laboratory informatics
+    - LIS integration
+  - - next generation sequencing
+    - molecular pathology
+    - companion diagnostics
+products:
+  enabled: false
+quality:
+  publish_score: 8.0
+  rewrite_score: 6.0
+  max_rewrites: 2
+research:
+  max_research_age_days: 14
+  shared_with:
+  - magpie-diagnostics
+output:
+  obsidian_folder: sites/digital-pathology-today/articles
+  frontmatter_template:
+    site: digital-pathology-today
+    status: draft
+    author: Caleb Newton, MD
+  filename_pattern: YYYY-MM-DD-{slug}.md

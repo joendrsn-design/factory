@@ -1,0 +1,62 @@
+# ============================================================
+# SITE DNA: Daily Latin
+# ============================================================
+
+tier: daily
+audience:
+  profile: Adults seeking daily contemplative content for personal growth
+  expertise_level: general
+  intent: reflect
+products:
+  enabled: false
+quality:
+  publish_score: 7.0
+  rewrite_score: 5.0
+  max_rewrites: 1
+research:
+  max_research_age_days: 90
+  shared_with: []
+site_id: daily-latin
+site_name: Daily Latin
+domain: dailylatin.today
+niche: philosophy-language
+sub_niche: Latin phrases, maxims, and their enduring relevance
+voice:
+  tone: scholarly-yet-inviting
+  persona: a classicist who makes Latin feel alive, not dusty
+  pov: second_person_instructional
+  reading_level: grade_10
+  style_notes: Start with the Latin. Translate. Then show why it still matters. Etymology
+    is your friend. Connect to modern usage where possible.
+  avoid:
+  - elitist tone
+  - gatekeeping
+  - excessive footnotes
+  - assuming Latin knowledge
+article_types:
+- type_id: daily_reflection
+  label: Daily Latin Phrase
+  description: One Latin phrase or maxim with translation, context, and modern reflection.
+  word_count_min: 300
+  word_count_max: 600
+  frequency_per_week: 7
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+seo:
+  primary_keywords:
+  - latin phrases
+  - latin maxims
+  - daily latin
+  keyword_clusters:
+  - - latin quotes
+    - latin sayings
+  - - classical wisdom
+    - ancient Rome
+output:
+  obsidian_folder: sites/daily-latin/articles
+  frontmatter_template:
+    site: daily-latin
+    status: draft
+    author: Daily Latin
+  filename_pattern: YYYY-MM-DD-{slug}.md

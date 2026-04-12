@@ -1,0 +1,65 @@
+# ============================================================
+# SITE DNA: Daily Aristotle
+# ============================================================
+
+tier: daily
+audience:
+  profile: Adults seeking daily contemplative content for personal growth
+  expertise_level: general
+  intent: reflect
+products:
+  enabled: false
+quality:
+  publish_score: 7.0
+  rewrite_score: 5.0
+  max_rewrites: 1
+research:
+  max_research_age_days: 90
+  shared_with: []
+site_id: daily-aristotle
+site_name: Daily Aristotle
+domain: dailyaristotle.today
+niche: philosophy-ethics
+sub_niche: Aristotelian philosophy applied to modern virtue and practical life
+voice:
+  tone: intellectual-grounded
+  persona: someone who reads Aristotle in the morning and coaches a soccer team in
+    the afternoon
+  pov: second_person_reflective
+  reading_level: grade_10
+  style_notes: Aristotle was practical. Virtue ethics is about habits, not abstractions.
+    Ground everything in the concrete. The golden mean shows up at the dinner table
+    and in the boardroom.
+  avoid:
+  - pure academic philosophy
+  - ivory tower detachment
+  - name-dropping without substance
+  - treating Aristotle as infallible
+article_types:
+- type_id: daily_reflection
+  label: Daily Aristotle Reflection
+  description: An idea from Aristotle explored through the lens of everyday decisions
+    and habits.
+  word_count_min: 400
+  word_count_max: 700
+  frequency_per_week: 7
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+seo:
+  primary_keywords:
+  - daily aristotle
+  - aristotle quotes
+  - virtue ethics daily
+  keyword_clusters:
+  - - golden mean
+    - aristotle virtue
+  - - practical philosophy
+    - ethics daily
+output:
+  obsidian_folder: sites/daily-aristotle/articles
+  frontmatter_template:
+    site: daily-aristotle
+    status: draft
+    author: Daily Aristotle
+  filename_pattern: YYYY-MM-DD-{slug}.md

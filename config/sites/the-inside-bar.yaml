@@ -1,0 +1,90 @@
+# ============================================================
+# SITE DNA: The Inside Bar
+# ============================================================
+
+site_id: the-inside-bar
+site_name: The Inside Bar
+domain: theinsidebar.com
+tier: flagship
+niche: trading-education
+sub_niche: The Strat methodology, volume profile, and commodity spread trading
+audience:
+  profile: Intermediate to advanced traders who want structured, evidence-based trading
+    education
+  expertise_level: intermediate
+  intent: learn-and-apply
+voice:
+  tone: direct-experienced
+  persona: a trader who's been profitable, lost everything, rebuilt, and now teaches
+    what actually works
+  pov: first_person_authority
+  reading_level: grade_11
+  style_notes: Direct. No fluff. Every article should have something the reader can
+    use in their next session. Charts speak louder than words. Risk management is
+    religion. Include disclaimers naturally.
+  avoid:
+  - get-rich-quick promises
+  - guru worship
+  - prediction certainty
+  - flashy lifestyle imagery
+  - ignoring risk
+article_types:
+- type_id: strategy_guide
+  label: Strategy Guide
+  description: Detailed breakdown of a trading strategy, setup, or methodology with
+    examples.
+  word_count_min: 1500
+  word_count_max: 3000
+  frequency_per_week: 2
+  enabled: true
+  research_depth: moderate
+  citation_required: false
+- type_id: market_analysis
+  label: Market Analysis
+  description: Current market context with specific setups and levels to watch.
+  word_count_min: 800
+  word_count_max: 1500
+  frequency_per_week: 3
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+- type_id: concept_explainer
+  label: Trading Concepts
+  description: Educational explainer on a trading concept, indicator, or technique.
+  word_count_min: 1000
+  word_count_max: 2000
+  frequency_per_week: 1
+  enabled: true
+  research_depth: moderate
+  citation_required: false
+seo:
+  primary_keywords:
+  - the strat trading
+  - volume profile
+  - commodity spreads
+  keyword_clusters:
+  - - strat methodology
+    - broadening formations
+    - inside bar
+  - - volume profile trading
+    - POC
+    - value area
+  - - calendar spreads
+    - agricultural futures
+    - spread trading
+products:
+  enabled: false
+quality:
+  publish_score: 7.5
+  rewrite_score: 5.0
+  max_rewrites: 2
+research:
+  max_research_age_days: 14
+  shared_with: []
+output:
+  obsidian_folder: sites/the-inside-bar/articles
+  frontmatter_template:
+    site: the-inside-bar
+    status: draft
+    author: The Inside Bar
+  filename_pattern: YYYY-MM-DD-{slug}.md

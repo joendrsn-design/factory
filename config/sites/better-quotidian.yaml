@@ -1,0 +1,81 @@
+# ============================================================
+# SITE DNA: Better Quotidian
+# ============================================================
+
+site_id: better-quotidian
+site_name: Better Quotidian
+domain: betterquotidian.com
+tier: flagship
+niche: philosophy-practical
+sub_niche: Classical philosophy applied to modern daily life
+audience:
+  profile: Intellectually curious adults 25-55 who want philosophy that changes Tuesday,
+    not just Sunday
+  expertise_level: mixed
+  intent: learn-and-apply
+voice:
+  tone: thoughtful-conversational
+  persona: a philosophy PhD who quit academia to actually live the ideas
+  pov: second_person_reflective
+  reading_level: grade_10
+  style_notes: Philosophy is not decoration. Every idea must connect to something
+    the reader did today or will do tomorrow. Mix traditions freely. Stoicism meets
+    Taoism meets Aristotle when the moment calls for it.
+  avoid:
+  - academic name-dropping
+  - philosophy as self-help hack
+  - cultural appropriation
+  - guru energy
+  - motivational poster quotes
+article_types:
+- type_id: deep_dive
+  label: Deep Exploration
+  description: Long-form exploration of a philosophical concept with practical application.
+  word_count_min: 1500
+  word_count_max: 3000
+  frequency_per_week: 2
+  enabled: true
+  research_depth: moderate
+  citation_required: false
+- type_id: daily_reflection
+  label: Quotidian Reflection
+  description: Short daily piece connecting philosophy to the ordinary.
+  word_count_min: 300
+  word_count_max: 600
+  frequency_per_week: 5
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+seo:
+  primary_keywords:
+  - practical philosophy
+  - stoicism daily
+  - applied philosophy
+  keyword_clusters:
+  - - stoic philosophy
+    - marcus aurelius
+    - daily stoicism
+  - - virtue ethics
+    - aristotle modern
+  - - taoism practical
+    - eastern philosophy daily
+products:
+  enabled: false
+quality:
+  publish_score: 7.5
+  rewrite_score: 5.5
+  max_rewrites: 2
+research:
+  max_research_age_days: 60
+  shared_with:
+  - daily-marcus-aurelius
+  - daily-aristotle
+  - daily-aquinas
+  - daily-tao
+output:
+  obsidian_folder: sites/better-quotidian/articles
+  frontmatter_template:
+    site: better-quotidian
+    status: draft
+    author: Better Quotidian
+  filename_pattern: YYYY-MM-DD-{slug}.md

@@ -1,0 +1,123 @@
+# ============================================================
+# SITE DNA: Daily Marcus Aurelius
+# ============================================================
+# Daily stoic reflections — contemplative, minimal, automated
+# ============================================================
+
+# --- IDENTITY ---
+site_id: "daily-marcus-aurelius"
+site_name: "Daily Marcus Aurelius"
+domain: "dailymarcusaurelius.com"
+tier: "daily"
+niche: "philosophy"
+sub_niche: "stoicism"
+
+# --- AUDIENCE ---
+audience:
+  profile: "Thoughtful adults seeking daily philosophical grounding through Stoic wisdom"
+  expertise_level: "beginner"
+  intent: "reflect"
+
+# --- VOICE & TONE ---
+voice:
+  tone: "contemplative-and-grounding"
+  persona: "a calm philosophical guide offering timeless wisdom for modern life"
+  pov: "second_person_instructional"
+  reading_level: "grade_8"
+  style_notes: "Short, meditative. Let the philosophy breathe. No lecturing. Pose questions that linger. Each piece should feel like a moment of stillness."
+  avoid:
+    - "academic jargon"
+    - "lengthy historical context"
+    - "self-help cliches"
+    - "productivity hustle framing"
+
+# --- ARTICLE TYPES ---
+article_types:
+  - type_id: "daily_reflection"
+    label: "Daily Reflection"
+    description: "Short contemplative piece anchored to a Stoic idea or passage from Meditations"
+    word_count_min: 300
+    word_count_max: 600
+    structure:
+      - "anchor_quote_or_idea"
+      - "reflection"
+      - "closing_question_or_thought"
+    research_depth: "shallow"
+    citation_required: false
+    seo_priority: "low"
+    frequency: "daily"
+    enabled: true
+
+  - type_id: "weekly_deep_reflection"
+    label: "Weekly Deep Reflection"
+    description: "Longer exploration of a Stoic theme with modern application"
+    word_count_min: 800
+    word_count_max: 1200
+    structure:
+      - "theme_introduction"
+      - "historical_context"
+      - "modern_application"
+      - "closing_meditation"
+    research_depth: "moderate"
+    citation_required: false
+    seo_priority: "medium"
+    frequency: "weekly"
+    enabled: true
+
+# --- SEO ---
+seo:
+  primary_keywords:
+    - "marcus aurelius quotes"
+    - "stoic wisdom"
+    - "daily stoic reflection"
+    - "meditations marcus aurelius"
+  keyword_clusters:
+    - ["stoicism", "daily practice", "morning reflection"]
+    - ["marcus aurelius", "meditations", "philosophy"]
+  internal_link_targets: []
+  meta_description_style: "question-based"
+
+# --- PRODUCT INTEGRATION ---
+products:
+  enabled: false
+  product_types: []
+  mention_rules: ""
+  affiliate_networks: []
+  owned_products: []
+
+# --- QUALITY THRESHOLDS ---
+quality:
+  publish_threshold: 0.70
+  rewrite_threshold: 0.50
+  kill_threshold: 0.30
+  max_rewrites: 1
+  checks:
+    - "readability"
+    - "voice_consistency"
+    - "originality"
+
+# --- RESEARCH VAULT ---
+research:
+  vault_tags:
+    - "stoicism"
+    - "marcus-aurelius"
+    - "philosophy"
+  max_research_age_days: 90
+  shared_with:
+    - "better-quotidian"
+    - "daily-aquinas"
+    - "daily-aristotle"
+
+# --- OUTPUT ---
+output:
+  obsidian_folder: "sites/daily-marcus-aurelius/articles"
+  frontmatter_template:
+    site: "daily-marcus-aurelius"
+    status: "draft"
+    author: "Daily Marcus Aurelius"
+    category: "reflection"
+    tags: []
+    date_created: ""
+    date_published: ""
+  filename_pattern: "YYYY-MM-DD-{slug}.md"
+  status_field: "draft"

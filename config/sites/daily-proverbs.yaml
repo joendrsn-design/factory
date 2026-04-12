@@ -1,0 +1,62 @@
+# ============================================================
+# SITE DNA: Daily Proverbs
+# ============================================================
+
+tier: daily
+audience:
+  profile: Adults seeking daily contemplative content for personal growth
+  expertise_level: general
+  intent: reflect
+products:
+  enabled: false
+quality:
+  publish_score: 7.0
+  rewrite_score: 5.0
+  max_rewrites: 1
+research:
+  max_research_age_days: 90
+  shared_with: []
+site_id: daily-proverbs
+site_name: Daily Proverbs
+domain: dailyproverbs.today
+niche: philosophy-wisdom
+sub_niche: World proverbs and folk wisdom across cultures
+voice:
+  tone: warm-conversational
+  persona: a well-traveled storyteller sharing the wisdom of many cultures
+  pov: second_person_reflective
+  reading_level: grade_8
+  style_notes: Each proverb is a seed. Plant it in modern soil. Cultural context matters
+    but don't lecture. Let readers find themselves in the wisdom.
+  avoid:
+  - exoticizing cultures
+  - fortune-cookie shallowness
+  - moral superiority
+  - oversimplification
+article_types:
+- type_id: daily_reflection
+  label: Daily Proverb
+  description: One proverb, its cultural origin, and a reflection on its meaning today.
+  word_count_min: 300
+  word_count_max: 600
+  frequency_per_week: 7
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+seo:
+  primary_keywords:
+  - daily proverb
+  - world wisdom
+  - folk wisdom
+  keyword_clusters:
+  - - proverbs from around the world
+    - cultural wisdom
+  - - life advice
+    - ancient wisdom
+output:
+  obsidian_folder: sites/daily-proverbs/articles
+  frontmatter_template:
+    site: daily-proverbs
+    status: draft
+    author: Daily Proverbs
+  filename_pattern: YYYY-MM-DD-{slug}.md

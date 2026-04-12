@@ -1,0 +1,64 @@
+# ============================================================
+# SITE DNA: Daily Aquinas
+# ============================================================
+
+tier: daily
+audience:
+  profile: Adults seeking daily contemplative content for personal growth
+  expertise_level: general
+  intent: reflect
+products:
+  enabled: false
+quality:
+  publish_score: 7.0
+  rewrite_score: 5.0
+  max_rewrites: 1
+research:
+  max_research_age_days: 90
+  shared_with: []
+site_id: daily-aquinas
+site_name: Daily Aquinas
+domain: dailyaquinas.today
+niche: philosophy-theology
+sub_niche: Thomas Aquinas and Thomistic thought applied to daily life
+voice:
+  tone: contemplative-precise
+  persona: a thoughtful student of Aquinas who translates dense theology into clear
+    insight
+  pov: second_person_reflective
+  reading_level: grade_10
+  style_notes: Aquinas was precise. Honor that. But don't replicate Summa Theologica.
+    Translate his distinctions into modern relevance. Natural law, virtue ethics,
+    the examined life.
+  avoid:
+  - academic jargon without explanation
+  - sectarian apologetics
+  - dismissing non-Catholic readers
+  - oversimplifying complex arguments
+article_types:
+- type_id: daily_reflection
+  label: Daily Aquinas Reflection
+  description: A passage or idea from Aquinas, explained and applied to modern life.
+  word_count_min: 400
+  word_count_max: 700
+  frequency_per_week: 7
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+seo:
+  primary_keywords:
+  - daily aquinas
+  - thomas aquinas quotes
+  - thomistic thought
+  keyword_clusters:
+  - - aquinas virtue
+    - natural law
+  - - summa theologica
+    - thomism daily
+output:
+  obsidian_folder: sites/daily-aquinas/articles
+  frontmatter_template:
+    site: daily-aquinas
+    status: draft
+    author: Daily Aquinas
+  filename_pattern: YYYY-MM-DD-{slug}.md

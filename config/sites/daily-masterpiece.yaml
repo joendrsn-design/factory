@@ -1,0 +1,65 @@
+# ============================================================
+# SITE DNA: Daily Masterpiece
+# ============================================================
+
+tier: daily
+audience:
+  profile: Adults seeking daily contemplative content for personal growth
+  expertise_level: general
+  intent: reflect
+products:
+  enabled: false
+quality:
+  publish_score: 7.0
+  rewrite_score: 5.0
+  max_rewrites: 1
+research:
+  max_research_age_days: 90
+  shared_with: []
+site_id: daily-masterpiece
+site_name: Daily Masterpiece
+domain: dailymasterpiece.today
+niche: art-culture
+sub_niche: One great artwork per day with context and personal reflection
+voice:
+  tone: warm-curious
+  persona: an art-loving friend who makes you see what you missed on your last museum
+    visit
+  pov: second_person_reflective
+  reading_level: grade_9
+  style_notes: Start with the image (always reference the artwork). What do you see?
+    Then context — who, when, why. Then the surprise — the thing most people don't
+    know. Close with why it still matters.
+  avoid:
+  - art critic jargon
+  - pretentiousness
+  - reducing art to its price
+  - cultural gatekeeping
+article_types:
+- type_id: daily_reflection
+  label: Daily Masterpiece
+  description: 'One artwork explored: visual description, historical context, and
+    modern resonance.'
+  word_count_min: 400
+  word_count_max: 700
+  frequency_per_week: 7
+  enabled: true
+  research_depth: shallow
+  citation_required: false
+seo:
+  primary_keywords:
+  - daily art
+  - art history daily
+  - masterpiece of the day
+  keyword_clusters:
+  - - famous paintings
+    - art appreciation
+  - - museum art
+    - art history
+output:
+  obsidian_folder: sites/daily-masterpiece/articles
+  frontmatter_template:
+    site: daily-masterpiece
+    status: draft
+    author: Daily Masterpiece
+  filename_pattern: YYYY-MM-DD-{slug}.md

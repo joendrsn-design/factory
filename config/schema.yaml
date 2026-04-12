@@ -1,0 +1,88 @@
+# ============================================================
+# ARTICLE FACTORY — SITE DNA SCHEMA
+# ============================================================
+# Every site config file must conform to this structure.
+# site_loader.py validates against this schema on load.
+# One file per site. Drop a new YAML file = new site online.
+# ============================================================
+
+# --- IDENTITY ---
+site_id: ""                    # unique slug: "lamphill", "inside-bar", "daily-marcus-aurelius"
+site_name: ""                  # display name: "LampHill", "The Inside Bar"
+domain: ""                     # "lamphill.com"
+tier: ""                       # "flagship" | "daily" | "network"
+niche: ""                      # primary niche: "longevity", "trading", "philosophy"
+sub_niche: ""                  # optional narrower focus: "supplements", "price action", "stoicism"
+
+# --- AUDIENCE ---
+audience:
+  profile: ""                  # "Health-conscious adults 30-60 seeking evidence-based longevity strategies"
+  expertise_level: ""          # "beginner" | "intermediate" | "advanced" | "mixed"
+  intent: ""                   # "learn" | "buy" | "reflect" | "apply"
+
+# --- VOICE & TONE ---
+voice:
+  tone: ""                     # "authoritative-yet-approachable", "contemplative", "direct-and-actionable"
+  persona: ""                  # "trusted physician-researcher", "seasoned trader", "philosophical guide"
+  pov: ""                      # "first_person" | "third_person" | "second_person_instructional"
+  reading_level: ""            # "grade_8" | "grade_10" | "grade_12" | "professional"
+  style_notes: ""              # freeform: "Use clinical evidence but soften jargon. Warm, never preachy."
+  avoid: []                    # ["clickbait", "hype language", "unsubstantiated claims"]
+
+# --- ARTICLE TYPES ---
+# Each site supports one or more article types.
+# Modules use these to calibrate depth, structure, length, and style.
+article_types:
+  - type_id: ""                # "deep_dive", "daily_reflection", "listicle", "tutorial", "review", "pillar"
+    label: ""                  # "Deep Dive"
+    description: ""            # "Long-form, research-heavy article with clinical citations"
+    word_count_min: 0
+    word_count_max: 0
+    structure: []              # ["intro", "background", "evidence", "practical_application", "conclusion"]
+    research_depth: ""         # "shallow" | "moderate" | "deep" | "exhaustive"
+    citation_required: false   # true = must include sources
+    seo_priority: ""           # "high" | "medium" | "low"
+    frequency: ""              # "daily" | "3x_week" | "weekly" | "as_needed"
+    enabled: true
+
+# --- SEO ---
+seo:
+  primary_keywords: []         # ["magnesium sleep", "longevity supplements"]
+  keyword_clusters: []         # [["magnesium", "sleep", "insomnia"], ["NAD+", "aging", "mitochondria"]]
+  internal_link_targets: []    # URLs or slugs to prioritize for internal linking
+  meta_description_style: ""   # "question-based" | "benefit-driven" | "direct"
+
+# --- PRODUCT INTEGRATION ---
+products:
+  enabled: false               # does this site monetize with product mentions?
+  product_types: []            # ["supplements", "courses", "affiliate", "ebooks", "journals"]
+  mention_rules: ""            # "Mention naturally in context, never force. Max 1 CTA per article."
+  affiliate_networks: []       # ["amazon", "shareasale", "direct"]
+  owned_products: []           # [{"name": "LampHill Magnesium Complex", "url": "/shop/magnesium", "context": "sleep and recovery articles"}]
+
+# --- QUALITY THRESHOLDS ---
+quality:
+  publish_threshold: 0.0       # 0.0-1.0, articles scoring above this publish automatically
+  rewrite_threshold: 0.0       # articles between rewrite and publish get sent back to Write
+  kill_threshold: 0.0          # articles below this get killed, not rewritten
+  max_rewrites: 0              # how many rewrite attempts before kill
+  checks:                      # which quality dimensions to evaluate
+    - "factual_accuracy"
+    - "readability"
+    - "voice_consistency"
+    - "seo_structure"
+    - "originality"
+    - "internal_linking"
+
+# --- RESEARCH VAULT ---
+research:
+  vault_tags: []               # tags used when depositing/searching research vault
+  max_research_age_days: 0     # how old can cached research be before re-running?
+  shared_with: []              # other site_ids that share research: ["better-quotidian", "daily-marcus-aurelius"]
+
+# --- OUTPUT ---
+output:
+  obsidian_folder: ""          # where finished articles deposit: "sites/lamphill/articles"
+  frontmatter_template: {}     # default frontmatter fields for this site's articles
+  filename_pattern: ""         # "YYYY-MM-DD-{slug}.md"
+  status_field: "draft"        # default status on deposit: "draft" | "review" | "published"
