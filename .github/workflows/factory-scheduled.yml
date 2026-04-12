@@ -42,12 +42,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd factory
-          pip install -r requirements.txt
+                    pip install -r requirements.txt
 
       - name: Write .env file
         run: |
-          cat > factory/.env << EOF
+          cat > .env << EOF
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           FACTORY_API_KEY=${{ secrets.FACTORY_API_KEY }}
           SITE_EMPIRE_URL=${{ secrets.SITE_EMPIRE_URL }}
@@ -58,15 +57,13 @@ jobs:
       - name: Check registry — which sites are due
         id: registry_check
         run: |
-          cd factory
-          python registry.py due || echo "No sites due or registry unavailable"
+                    python registry.py due || echo "No sites due or registry unavailable"
 
       # ── Scheduled mode: run all due sites ─────────────────────────────────
       - name: Run due sites (scheduled)
         if: github.event_name == 'schedule'
         run: |
-          cd factory
-          python orchestrator.py due
+                    python orchestrator.py due
         env:
           PYTHONIOENCODING: utf-8
 
@@ -74,8 +71,7 @@ jobs:
       - name: Run specific site (manual dispatch)
         if: github.event_name == 'workflow_dispatch' && inputs.site != ''
         run: |
-          cd factory
-          ARGS="--site ${{ inputs.site }} --count ${{ inputs.count }}"
+                    ARGS="--site ${{ inputs.site }} --count ${{ inputs.count }}"
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"
           fi
@@ -86,8 +82,7 @@ jobs:
       - name: Run all due sites (manual dispatch, no site specified)
         if: github.event_name == 'workflow_dispatch' && inputs.site == ''
         run: |
-          cd factory
-          python orchestrator.py due
+                    python orchestrator.py due
         env:
           PYTHONIOENCODING: utf-8
 
@@ -97,14 +92,13 @@ jobs:
         with:
           name: pipeline-artifacts-${{ github.run_id }}
           path: |
-            factory/pipeline/
-            factory/logs/
+            pipeline/
+            logs/
           retention-days: 3
 
       - name: Report registry status
         if: always()
         run: |
-          cd factory
-          python registry.py list || true
+                    python registry.py list || true
         env:
           PYTHONIOENCODING: utf-8
