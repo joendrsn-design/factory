@@ -4,10 +4,44 @@
 
 site_id: the-inside-bar
 site_name: The Inside Bar
-domain: theinsidebar.com
+domain: insidebar.com
 tier: flagship
 niche: trading-education
 sub_niche: The Strat methodology, volume profile, and commodity spread trading
+
+# --- CATEGORIES ---
+categories:
+  - slug: the-strat
+    label: The Strat
+    description: Rob Smith's Strat methodology, broadening formations, and actionable signals
+  - slug: setups
+    label: Setups
+    description: Specific trade setups with entry, stop, and target levels
+  - slug: futures
+    label: Futures
+    description: Futures trading including ES, NQ, CL, and commodities
+  - slug: stocks
+    label: Stocks
+    description: Stock trading setups and equity analysis
+  - slug: options
+    label: Options
+    description: Options strategies, Greeks, and flow analysis
+  - slug: risk-management
+    label: Risk Management
+    description: Position sizing, stop losses, and capital preservation
+  - slug: psychology
+    label: Trading Psychology
+    description: Mindset, discipline, and emotional control
+  - slug: market-structure
+    label: Market Structure
+    description: Volume profile, order flow, and auction theory
+  - slug: tools
+    label: Tools & Platforms
+    description: Trading software, charting tools, and broker reviews
+  - slug: education
+    label: Education
+    description: Foundational concepts and learning resources
+
 audience:
   profile: Intermediate to advanced traders who want structured, evidence-based trading
     education
