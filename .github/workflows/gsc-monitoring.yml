@@ -1,0 +1,143 @@
+name: GSC Monitoring
+
+on:
+  schedule:
+    # Daily GSC data fetch at 8am UTC
+    - cron: '0 8 * * *'
+    # Weekly rollup and report on Monday 9am UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode to run'
+        required: true
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - weekly
+          - quarterly
+      domain:
+        description: 'Run for specific domain only (leave blank for all)'
+        required: false
+        default: ''
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  GSC_SERVICE_ACCOUNT_JSON: secrets/gsc-service-account.json
+  GSC_ALERT_SLACK_WEBHOOK: ${{ secrets.GSC_ALERT_SLACK_WEBHOOK }}
+  HEALTH_SLACK_WEBHOOK: ${{ secrets.HEALTH_SLACK_WEBHOOK }}
+
+jobs:
+  # Daily GSC data fetch
+  daily-fetch:
+    name: Daily GSC Fetch
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 8 * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'daily')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set up Google credentials
+        run: |
+          mkdir -p secrets
+          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > secrets/gsc-service-account.json
+
+      - name: Run daily GSC fetch
+        id: fetch
+        run: |
+          if [ -n "${{ inputs.domain }}" ]; then
+            python scripts/cron_gsc_fetch.py --domain "${{ inputs.domain }}" 2>&1 | tee fetch-report.txt
+          else
+            python scripts/cron_gsc_fetch.py 2>&1 | tee fetch-report.txt
+          fi
+
+      - name: Upload fetch report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsc-fetch-report-${{ github.run_id }}
+          path: fetch-report.txt
+          retention-days: 14
+
+  # Weekly rollup and report
+  weekly-rollup:
+    name: Weekly Rollup & Report
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 9 * * 1') ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'weekly')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run weekly rollup
+        run: python scripts/cron_gsc_weekly.py 2>&1 | tee weekly-report.txt
+
+      - name: Upload weekly report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsc-weekly-report-${{ github.run_id }}
+          path: weekly-report.txt
+          retention-days: 30
+
+  # Quarterly audit (manual trigger only)
+  quarterly-audit:
+    name: Quarterly Content Audit
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'quarterly'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run quarterly audit
+        run: |
+          if [ -n "${{ inputs.domain }}" ]; then
+            python scripts/quarterly_audit.py --domain "${{ inputs.domain }}" --output audit-results.json 2>&1 | tee quarterly-audit.txt
+          else
+            python scripts/quarterly_audit.py --output audit-results.json 2>&1 | tee quarterly-audit.txt
+          fi
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsc-quarterly-audit-${{ github.run_id }}
+          path: |
+            quarterly-audit.txt
+            audit-results.json
+          retention-days: 90

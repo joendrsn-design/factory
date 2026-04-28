@@ -363,3 +363,206 @@ class SearchConsoleClient:
                 raise SearchConsoleError(
                     f"Failed to delete sitemap for {domain}: {e}"
                 ) from e
+
+    def query_search_analytics(
+        self,
+        domain: str,
+        start_date: str,
+        end_date: str,
+        dimensions: list[str] = None,
+        row_limit: int = 25000,
+        start_row: int = 0,
+        data_state: str = "final",
+    ) -> list[dict]:
+        """
+        Query Search Analytics data from Google Search Console.
+
+        Uses the searchanalytics.query API to fetch performance data
+        including clicks, impressions, CTR, and position.
+
+        Args:
+            domain: The domain to query (e.g., "example.com").
+            start_date: Start date in YYYY-MM-DD format.
+            end_date: End date in YYYY-MM-DD format.
+            dimensions: List of dimensions to group by. Options:
+                        'query', 'page', 'country', 'device', 'date'.
+                        Default: ['page', 'query', 'date'].
+            row_limit: Maximum rows to return (max 25000 per request).
+            start_row: Starting row for pagination.
+            data_state: 'final' (default, 2-3 day lag) or 'all' (includes fresh data).
+
+        Returns:
+            List of row dicts with keys: keys[], clicks, impressions, ctr, position.
+            Example: [{'keys': ['/page', 'query', '2026-04-20'], 'clicks': 10, ...}]
+
+        Raises:
+            SearchConsoleError: On API errors.
+        """
+        site_url = f"sc-domain:{domain}"
+
+        if dimensions is None:
+            dimensions = ["page", "query", "date"]
+
+        logger.info(
+            f"Querying Search Analytics for {domain}: "
+            f"{start_date} to {end_date}, dimensions={dimensions}"
+        )
+
+        request_body = {
+            "startDate": start_date,
+            "endDate": end_date,
+            "dimensions": dimensions,
+            "rowLimit": row_limit,
+            "startRow": start_row,
+            "dataState": data_state,
+        }
+
+        try:
+            response = (
+                self.webmasters_service.searchanalytics()
+                .query(siteUrl=site_url, body=request_body)
+                .execute()
+            )
+
+            rows = response.get("rows", [])
+            logger.info(f"Retrieved {len(rows)} rows from Search Analytics")
+            return rows
+
+        except HttpError as e:
+            status_code = e.resp.status if hasattr(e, "resp") else 0
+            if status_code == 403:
+                raise SearchConsoleError(
+                    f"Access denied to Search Analytics for {domain}. "
+                    f"Ensure the service account has access to the property."
+                ) from e
+            raise SearchConsoleError(
+                f"Failed to query Search Analytics for {domain}: {e}"
+            ) from e
+
+    def query_search_analytics_all(
+        self,
+        domain: str,
+        start_date: str,
+        end_date: str,
+        dimensions: list[str] = None,
+        data_state: str = "final",
+    ) -> list[dict]:
+        """
+        Query all Search Analytics data, handling pagination automatically.
+
+        Repeatedly calls query_search_analytics() until all data is retrieved.
+        Useful for large sites that exceed the 25000 row limit.
+
+        Args:
+            domain: The domain to query.
+            start_date: Start date in YYYY-MM-DD format.
+            end_date: End date in YYYY-MM-DD format.
+            dimensions: List of dimensions (default: ['page', 'query', 'date']).
+            data_state: 'final' or 'all'.
+
+        Returns:
+            Complete list of all rows across all pages.
+        """
+        all_rows = []
+        start_row = 0
+        row_limit = 25000
+
+        while True:
+            rows = self.query_search_analytics(
+                domain=domain,
+                start_date=start_date,
+                end_date=end_date,
+                dimensions=dimensions,
+                row_limit=row_limit,
+                start_row=start_row,
+                data_state=data_state,
+            )
+
+            all_rows.extend(rows)
+
+            # If we got fewer rows than the limit, we're done
+            if len(rows) < row_limit:
+                break
+
+            start_row += row_limit
+            logger.info(f"Paginating: fetched {len(all_rows)} total rows so far...")
+
+        logger.info(f"Total rows retrieved: {len(all_rows)}")
+        return all_rows
+
+    def get_manual_actions(self, domain: str) -> list[dict]:
+        """
+        Get manual actions for a domain (best-effort).
+
+        Note: The Search Console API does not provide a direct endpoint
+        for manual actions. This method attempts to check via the
+        webResource API, but manual action detection may be limited.
+
+        For reliable manual action detection, implement:
+        1. Security Issues API (if available)
+        2. Email notifications via Google alerts
+        3. Regular manual checks in Search Console UI
+
+        Args:
+            domain: The domain to check.
+
+        Returns:
+            List of manual action dicts (may be empty if API doesn't expose them).
+        """
+        logger.info(f"Checking for manual actions on {domain}")
+
+        # The GSC API doesn't directly expose manual actions.
+        # This is a placeholder for potential future API support or
+        # integration with Google's security issues endpoint.
+        #
+        # In practice, manual actions are detected via:
+        # - Email notifications from Google
+        # - Manual checks in GSC UI
+        # - Third-party monitoring tools
+
+        logger.warning(
+            f"Manual action detection via API is limited. "
+            f"Check Search Console UI for {domain} or set up email alerts."
+        )
+
+        return []
+
+    def get_coverage_issues(
+        self,
+        domain: str,
+        category: str = None,
+    ) -> dict:
+        """
+        Get URL inspection / coverage summary for a domain.
+
+        Note: Full coverage data requires the URL Inspection API which
+        has rate limits. This returns a summary if available.
+
+        Args:
+            domain: The domain to check.
+            category: Optional filter ('error', 'warning', 'valid', 'excluded').
+
+        Returns:
+            Dict with coverage summary information.
+        """
+        site_url = f"sc-domain:{domain}"
+
+        logger.info(f"Fetching coverage summary for {domain}")
+
+        # The Search Console API provides limited coverage data.
+        # Full coverage reports require URL Inspection API with
+        # significant rate limits (2000 requests/day).
+
+        try:
+            # Try to get basic site info which may include status
+            response = self.webmasters_service.sites().get(siteUrl=site_url).execute()
+
+            return {
+                "site_url": site_url,
+                "permission_level": response.get("permissionLevel", "unknown"),
+                "note": "Full coverage data requires URL Inspection API",
+            }
+
+        except HttpError as e:
+            logger.warning(f"Failed to get coverage for {domain}: {e}")
+            return {"error": str(e)}
