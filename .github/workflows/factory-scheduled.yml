@@ -1,12 +1,36 @@
 name: Factory — Scheduled Run
 
-# Runs daily at 6am UTC (1am EST / 10pm PST)
-# Checks registry for sites due for a run, processes each one
+# ============================================================
+# AUTONOMOUS BATCH PIPELINE
+# ============================================================
+# 6am UTC: Submit phase
+#   - Generate topics (realtime, cheap)
+#   - Submit research/planning/write/qa to Anthropic Batch API
+#   - Track batch IDs in Supabase batch_jobs table
+#
+# 9am UTC: Collect phase
+#   - Poll batch_jobs for pending batches
+#   - Collect completed batches
+#   - Advance to next stage or deposit if done
+#   - Update factory_registry
+# ============================================================
+
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 6 * * *'   # 6am UTC - Submit batches
+    - cron: '0 9 * * *'   # 9am UTC - Collect and deposit
+    - cron: '0 12 * * *'  # 12pm UTC - Catch stragglers
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'Mode to run'
+        required: true
+        default: 'due-batch'
+        type: choice
+        options:
+          - due-batch
+          - collect
+          - due-realtime
       site:
         description: 'Run specific site only (leave blank for all due sites)'
         required: false
@@ -14,35 +38,32 @@ on:
       count:
         description: 'Number of articles to generate'
         required: false
-        default: '1'
-      dry_run:
-        description: 'Dry run (no API calls, no deposit)'
-        required: false
-        default: 'false'
-        type: boolean
+        default: '0'
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  run-factory:
-    name: Run Article Factory
+  # ── Phase 1: Submit batches (6am UTC) ────────────────────────
+  batch-submit:
+    name: Submit Batches
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+    # Run at 6am scheduled time OR manual with due-batch mode
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'due-batch')
 
     steps:
       - name: Checkout factory repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: Install dependencies
-        run: |
-                    pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Write .env file
         run: |
@@ -55,40 +76,137 @@ jobs:
           EOF
 
       - name: Check registry — which sites are due
-        id: registry_check
-        run: |
-                    python registry.py due || echo "No sites due or registry unavailable"
-
-      # ── Scheduled mode: run all due sites ─────────────────────────────────
-      - name: Run due sites (scheduled)
-        if: github.event_name == 'schedule'
-        run: |
-                    python orchestrator.py due
+        run: python registry.py due || echo "No sites due or registry unavailable"
         env:
           PYTHONIOENCODING: utf-8
 
-      # ── Manual mode: run specific site or all due ──────────────────────────
-      - name: Run specific site (manual dispatch)
-        if: github.event_name == 'workflow_dispatch' && inputs.site != ''
+      - name: Submit batches for due sites
         run: |
-                    ARGS="--site ${{ inputs.site }} --count ${{ inputs.count }}"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
+          ARGS="--batch"
+          if [ -n "${{ inputs.count }}" ] && [ "${{ inputs.count }}" != "0" ]; then
+            ARGS="$ARGS --count ${{ inputs.count }}"
           fi
-          python orchestrator.py run $ARGS
+          python orchestrator.py due $ARGS --report pipeline/reports/submit-report.md
         env:
           PYTHONIOENCODING: utf-8
 
-      - name: Run all due sites (manual dispatch, no site specified)
-        if: github.event_name == 'workflow_dispatch' && inputs.site == ''
+      - name: Upload submission report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: batch-submit-report-${{ github.run_id }}
+          path: pipeline/reports/
+          retention-days: 7
+
+      - name: Report registry status
+        if: always()
+        run: python registry.py list || true
+        env:
+          PYTHONIOENCODING: utf-8
+
+  # ── Phase 2: Collect and deposit (9am, 12pm UTC) ─────────────
+  batch-collect:
+    name: Collect & Deposit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Run at 9am/12pm scheduled time OR manual with collect mode
+    if: |
+      (github.event_name == 'schedule' && (github.event.schedule == '0 9 * * *' || github.event.schedule == '0 12 * * *')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'collect')
+
+    steps:
+      - name: Checkout factory repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write .env file
         run: |
-                    python orchestrator.py due
+          cat > .env << EOF
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          FACTORY_API_KEY=${{ secrets.FACTORY_API_KEY }}
+          SITE_EMPIRE_URL=${{ secrets.SITE_EMPIRE_URL }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
+          EOF
+
+      - name: Collect completed batches and deposit
+        run: |
+          python orchestrator.py collect --report pipeline/reports/collect-report.md
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: Upload collection report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: batch-collect-report-${{ github.run_id }}
+          path: pipeline/reports/
+          retention-days: 7
+
+      - name: Report registry status
+        if: always()
+        run: python registry.py list || true
+        env:
+          PYTHONIOENCODING: utf-8
+
+  # ── Legacy: Realtime mode (manual only) ──────────────────────
+  realtime-run:
+    name: Realtime Run
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'due-realtime'
+
+    steps:
+      - name: Checkout factory repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write .env file
+        run: |
+          cat > .env << EOF
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          FACTORY_API_KEY=${{ secrets.FACTORY_API_KEY }}
+          SITE_EMPIRE_URL=${{ secrets.SITE_EMPIRE_URL }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
+          EOF
+
+      - name: Run due sites (realtime)
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.site }}" ]; then
+            ARGS="--site ${{ inputs.site }}"
+          fi
+          if [ -n "${{ inputs.count }}" ] && [ "${{ inputs.count }}" != "0" ]; then
+            ARGS="$ARGS --count ${{ inputs.count }}"
+          fi
+          if [ -n "$ARGS" ]; then
+            python orchestrator.py run $ARGS
+          else
+            python orchestrator.py due
+          fi
         env:
           PYTHONIOENCODING: utf-8
 
       - name: Upload pipeline artifacts (on failure)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pipeline-artifacts-${{ github.run_id }}
           path: |
@@ -98,7 +216,6 @@ jobs:
 
       - name: Report registry status
         if: always()
-        run: |
-                    python registry.py list || true
+        run: python registry.py list || true
         env:
           PYTHONIOENCODING: utf-8

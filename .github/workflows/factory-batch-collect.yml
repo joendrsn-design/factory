@@ -21,8 +21,6 @@ on:
         default: 'false'
         type: boolean
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   batch-collect:
@@ -32,10 +30,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -56,7 +54,7 @@ jobs:
 
       # Restore pipeline state from submit job
       - name: Download pipeline state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pipeline-state-${{ inputs.site }}-${{ inputs.submit_run_id }}
           path: factory/pipeline/
@@ -107,7 +105,7 @@ jobs:
 
       - name: Upload final pipeline artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pipeline-final-${{ inputs.site }}-${{ github.run_id }}
           path: factory/pipeline/
