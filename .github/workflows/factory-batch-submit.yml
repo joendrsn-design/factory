@@ -17,7 +17,6 @@ on:
         required: false
         default: 'topics,research'
 
-
 jobs:
   batch-submit:
     name: Submit Batch — ${{ inputs.site }}
@@ -35,8 +34,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: |
-                    pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Write .env
         run: |
@@ -50,36 +48,31 @@ jobs:
 
       - name: Generate topics
         if: contains(inputs.stages, 'topics')
-        run: |
-                    python topic_generator.py run --site ${{ inputs.site }} --count ${{ inputs.count }}
+        run: python topic_generator.py run --site ${{ inputs.site }} --count ${{ inputs.count }}
         env:
           PYTHONIOENCODING: utf-8
 
       - name: Submit research batch
         if: contains(inputs.stages, 'research')
-        run: |
-                    python research.py submit --input pipeline/topics --site ${{ inputs.site }}
+        run: python research.py submit --input pipeline/topics --site ${{ inputs.site }}
         env:
           PYTHONIOENCODING: utf-8
 
       - name: Submit planning batch
         if: contains(inputs.stages, 'planning')
-        run: |
-                    python planning.py submit --input pipeline/research --site ${{ inputs.site }}
+        run: python planning.py submit --input pipeline/research --site ${{ inputs.site }}
         env:
           PYTHONIOENCODING: utf-8
 
       - name: Submit write batch
         if: contains(inputs.stages, 'write')
-        run: |
-                    python write.py submit --input pipeline/plans --site ${{ inputs.site }}
+        run: python write.py submit --input pipeline/plans --site ${{ inputs.site }}
         env:
           PYTHONIOENCODING: utf-8
 
       - name: Submit QA batch
         if: contains(inputs.stages, 'qa')
-        run: |
-                    python qa.py submit --input pipeline/articles --site ${{ inputs.site }}
+        run: python qa.py submit --input pipeline/articles --site ${{ inputs.site }}
         env:
           PYTHONIOENCODING: utf-8
 
