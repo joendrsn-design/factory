@@ -285,6 +285,104 @@ def write_to_obsidian(report: str) -> None:
         logger.error(f"Failed to write to Obsidian: {e}")
 
 
+# ── Artifact Cleanup ─────────────────────────────────────────
+
+def cleanup_old_artifacts(
+    pipeline_dir: str = "pipeline",
+    max_age_days: int = 30,
+    dry_run: bool = False,
+) -> dict:
+    """
+    Clean up old pipeline artifacts to prevent disk filling up.
+
+    Args:
+        pipeline_dir: Root pipeline directory
+        max_age_days: Delete artifacts older than this
+        dry_run: If True, only report what would be deleted
+
+    Returns:
+        Summary dict with counts per subdirectory
+    """
+    from datetime import timedelta
+
+    pipeline_path = Path(pipeline_dir)
+    if not pipeline_path.exists():
+        logger.warning(f"Pipeline directory not found: {pipeline_dir}")
+        return {"error": "directory_not_found"}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+    summary = {}
+
+    # Subdirectories to clean
+    subdirs = ["topics", "research", "angles", "plans", "articles", "preqa", "qa", "batches"]
+
+    for subdir in subdirs:
+        subdir_path = pipeline_path / subdir
+        if not subdir_path.exists():
+            continue
+
+        deleted = 0
+        kept = 0
+
+        for filepath in subdir_path.glob("*.md"):
+            try:
+                # Check file modification time
+                mtime = datetime.fromtimestamp(filepath.stat().st_mtime, tz=timezone.utc)
+                if mtime < cutoff:
+                    if dry_run:
+                        logger.info(f"[cleanup] Would delete: {filepath}")
+                    else:
+                        filepath.unlink()
+                        logger.debug(f"[cleanup] Deleted: {filepath}")
+                    deleted += 1
+                else:
+                    kept += 1
+            except (OSError, ValueError) as e:
+                logger.warning(f"[cleanup] Error processing {filepath}: {e}")
+
+        # Also clean up JSONL batch files
+        for filepath in subdir_path.glob("*.jsonl"):
+            try:
+                mtime = datetime.fromtimestamp(filepath.stat().st_mtime, tz=timezone.utc)
+                if mtime < cutoff:
+                    if dry_run:
+                        logger.info(f"[cleanup] Would delete: {filepath}")
+                    else:
+                        filepath.unlink()
+                    deleted += 1
+                else:
+                    kept += 1
+            except (OSError, ValueError) as e:
+                logger.warning(f"[cleanup] Error processing {filepath}: {e}")
+
+        summary[subdir] = {"deleted": deleted, "kept": kept}
+        if deleted > 0:
+            action = "Would delete" if dry_run else "Deleted"
+            logger.info(f"[cleanup] {subdir}: {action} {deleted} files, kept {kept}")
+
+    # Clean up failed_publishes if it exists
+    failed_dir = pipeline_path / "failed_publishes"
+    if failed_dir.exists():
+        deleted = 0
+        for filepath in failed_dir.glob("*.md"):
+            try:
+                mtime = datetime.fromtimestamp(filepath.stat().st_mtime, tz=timezone.utc)
+                if mtime < cutoff:
+                    if not dry_run:
+                        filepath.unlink()
+                    deleted += 1
+            except (OSError, ValueError):
+                pass
+        summary["failed_publishes"] = {"deleted": deleted}
+        if deleted > 0:
+            logger.info(f"[cleanup] failed_publishes: Cleaned up {deleted} old files")
+
+    total_deleted = sum(s.get("deleted", 0) for s in summary.values())
+    logger.info(f"[cleanup] Total: {'Would delete' if dry_run else 'Deleted'} {total_deleted} files")
+
+    return summary
+
+
 # CLI for testing
 if __name__ == "__main__":
     import argparse
@@ -299,9 +397,26 @@ if __name__ == "__main__":
     parser.add_argument("--slack", action="store_true", help="Post report to Slack")
     parser.add_argument("--obsidian", action="store_true", help="Write report to Obsidian")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
+    parser.add_argument("--cleanup", action="store_true", help="Clean up old pipeline artifacts")
+    parser.add_argument("--cleanup-days", type=int, default=30, help="Max age in days for cleanup (default: 30)")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without deleting")
     args = parser.parse_args()
 
-    if args.domain:
+    if args.cleanup:
+        summary = cleanup_old_artifacts(
+            pipeline_dir="pipeline",
+            max_age_days=args.cleanup_days,
+            dry_run=args.dry_run,
+        )
+        if args.json:
+            import json
+            print(json.dumps(summary, indent=2))
+        else:
+            print(f"\nArtifact cleanup {'(dry run)' if args.dry_run else 'complete'}:")
+            for subdir, counts in summary.items():
+                if isinstance(counts, dict):
+                    print(f"  {subdir}: deleted {counts.get('deleted', 0)}, kept {counts.get('kept', 0)}")
+    elif args.domain:
         result = check_domain(args.domain)
         if args.json:
             import json

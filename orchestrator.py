@@ -93,8 +93,14 @@ class BatchJobTracker:
         else:
             self._offline = False
 
-    def _request(self, method: str, endpoint: str, data: dict = None) -> dict:
-        """Make a request to Supabase REST API."""
+    def _request(
+        self,
+        method: str,
+        endpoint: str,
+        data: dict = None,
+        max_retries: int = 3,
+    ) -> dict:
+        """Make a request to Supabase REST API with exponential backoff retry."""
         if self._offline:
             raise ConnectionError("BatchJobTracker is in offline mode")
 
@@ -106,12 +112,24 @@ class BatchJobTracker:
             "Prefer": "return=representation",
         }
 
-        resp = requests.request(method, url, headers=headers, json=data, timeout=30)
-        resp.raise_for_status()
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                resp = requests.request(method, url, headers=headers, json=data, timeout=30)
+                resp.raise_for_status()
+                if resp.text:
+                    return resp.json()
+                return {}
+            except requests.exceptions.RequestException as e:
+                last_error = e
+                if attempt < max_retries:
+                    wait_time = 2 ** attempt  # 2, 4, 8 seconds
+                    logger.warning(f"[batch_tracker] Request failed (attempt {attempt}), retrying in {wait_time}s: {e}")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"[batch_tracker] Request failed after {max_retries} attempts: {e}")
 
-        if resp.text:
-            return resp.json()
-        return {}
+        raise last_error
 
     def record_batch(
         self,
@@ -155,6 +173,29 @@ class BatchJobTracker:
         except Exception as e:
             logger.error(f"[batch_tracker] Failed to get batches for run: {e}")
             return []
+
+    def claim_batch(self, batch_id: str) -> bool:
+        """
+        Atomically claim a batch for processing (pessimistic locking).
+        Only succeeds if status is still 'pending'. Prevents race conditions
+        when multiple collectors try to process the same batch.
+        """
+        try:
+            # Only update if status is pending (atomic check-and-set)
+            result = self._request(
+                "PATCH",
+                f"batch_jobs?batch_id=eq.{batch_id}&status=eq.pending",
+                {"status": "processing", "processing_started_at": datetime.now(timezone.utc).isoformat()},
+            )
+            # If no rows updated, someone else claimed it
+            if not result:
+                logger.warning(f"[batch_tracker] Batch {batch_id} already claimed by another process")
+                return False
+            logger.info(f"[batch_tracker] Claimed batch {batch_id} for processing")
+            return True
+        except Exception as e:
+            logger.error(f"[batch_tracker] Failed to claim batch: {e}")
+            return False
 
     def mark_completed(self, batch_id: str, cost_cents: int = 0) -> bool:
         """Mark a batch as completed."""
