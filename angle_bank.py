@@ -137,8 +137,8 @@ class AngleBank:
                         if banked_at < cutoff:
                             logger.debug(f"[angle_bank] Skipping expired: {filepath.name}")
                             continue
-                    except:
-                        pass
+                    except (ValueError, TypeError):
+                        pass  # Invalid date format, skip age check
 
                 available.append((meta, body, filepath))
 
@@ -217,14 +217,14 @@ class AngleBank:
                             continue
                         age_days = (now - banked_at).days
                         ages.append(age_days)
-                    except:
-                        pass
+                    except (ValueError, TypeError):
+                        pass  # Invalid date format, skip this entry
 
                 cat = meta.get("suggested_category", "uncategorized")
                 by_category[cat] = by_category.get(cat, 0) + 1
 
-            except:
-                pass
+            except (OSError, ValueError, KeyError):
+                pass  # Skip unreadable files
 
         return {
             "total": sum(by_category.values()),
@@ -261,8 +261,8 @@ class AngleBank:
 
                 try:
                     banked_at = datetime.fromisoformat(banked_at_str.replace("Z", "+00:00"))
-                except:
-                    continue
+                except (ValueError, TypeError):
+                    continue  # Invalid date format, skip this file
 
                 if banked_at < cutoff:
                     meta["bank_status"] = "expired"
@@ -355,16 +355,16 @@ class AngleBank:
                         banked_at = datetime.fromisoformat(banked_at_str.replace("Z", "+00:00"))
                         if banked_at < cutoff:
                             continue
-                    except:
-                        pass
+                    except (ValueError, TypeError):
+                        pass  # Invalid date format, skip age check
 
                 cat = meta.get("suggested_category", "")
                 if cat in remaining and remaining[cat] > 0:
                     found_by_cat[cat].append((meta, body, filepath))
                     remaining[cat] -= 1
 
-            except:
-                pass
+            except (OSError, ValueError, KeyError) as e:
+                logger.debug(f"[angle_bank] Skipping {filepath}: {e}")
 
         # Withdraw the ones we're using
         withdrawn = []

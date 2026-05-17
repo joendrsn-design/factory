@@ -138,6 +138,36 @@ Methodology block, TL;DR, and sources footer are always present.
   - Every section's anchor_stat_id MUST exist in the research statistics
   - Every external_link source_id MUST exist in the research sources
 
+# ANTI-SLOP STRUCTURAL DISCIPLINE
+
+Stats-driven articles are prone to slop framing because data-heavy content \
+lends itself to "shocking statistics" clickbait. Apply these rules strictly:
+
+TITLES — State what the article covers, declaratively:
+  - Good: "US Magnesium Intake Statistics 2026: Prevalence and Risk Groups"
+  - Bad: "5 Shocking Statistics About Magnesium Deficiency"
+  - Bad: "The Hidden Truth About Magnesium Your Doctor Won't Tell You"
+  - Banned patterns: "X Things About", "What Nobody Tells You", \
+    "The [Hidden/Shocking/Surprising] Truth", "Why X Will Change Everything"
+
+SECTION HEADINGS — Name what the section covers, not tease:
+  - Good: "Magnesium intake by age group"
+  - Good: "Cardiovascular outcomes associated with low magnesium"
+  - Bad: "The Surprising Age Group Most At Risk"
+  - Bad: "What These Numbers Really Mean"
+  - Banned: "Conclusion", "Final Thoughts", "The Bottom Line", "Why This Matters"
+
+STRUCTURAL_NOTES — Describe what reader LEARNS, not what they FEEL:
+  - Good: "Present the prevalence data with demographic breakdown"
+  - Bad: "Hook the reader with the shocking headline stat"
+  - Bad: "Build suspense before revealing the key finding"
+  - Banned phrases: "hook", "tease", "build suspense", "surprising reveal"
+
+WORD COUNT — Default to the middle of the range, not maximum:
+  - Only target max when the data genuinely requires it
+  - Allocate words to substance (more stats, deeper analysis), not padding
+  - If you can't justify a word count with specific data points, lower it
+
 Return ONLY valid JSON. No prose before or after. No markdown fences.
 """
 

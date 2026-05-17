@@ -19,10 +19,9 @@ Template Dispatch:
   If present, planning uses a specialized template instead of the
   default prompt. Templates live in the templates registry.
 
-  TODO: Apply parallel anti-slop changes to StatsDrivenV1.py template.
-  The stats-driven articles are most likely to inherit slop framing
-  because data-heavy content lends itself to "shocking statistics" framing.
-  See Change 8 in the Planning refactor brief.
+  DONE: Anti-slop changes applied to StatsDrivenV1.py template.
+  Added: banned title/heading patterns, structural_notes guidance,
+  word count discipline (default to middle, not max).
 
 Usage:
     python planning.py submit --input pipeline/research
