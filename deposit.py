@@ -79,6 +79,13 @@ def build_publish_payload(metadata: dict, body: str, site_context: SiteContext) 
     # Get category - prefer metadata over niche fallback
     category = metadata.get("category", "") or site_context.niche
 
+    # Use None for optional empty strings (cleaner API payload)
+    featured_image = metadata.get("featured_image", "") or None
+    meta_description = metadata.get("meta_description", "") or None
+    seo_title = metadata.get("seo_title", "") or None
+    article_type = metadata.get("article_type", "") or None
+    qa_feedback = metadata.get("feedback", "") or None
+
     return {
         "site_id": metadata.get("site_id", ""),
         "slug": metadata.get("slug", ""),
@@ -86,17 +93,17 @@ def build_publish_payload(metadata: dict, body: str, site_context: SiteContext) 
         "body": clean_body,
         "date": today,
         "draft": False,
-        "description": metadata.get("meta_description", ""),
-        "meta_description": metadata.get("meta_description", ""),
-        "seo_title": metadata.get("seo_title", ""),
+        "description": meta_description,
+        "meta_description": meta_description,
+        "seo_title": seo_title,
         "category": category,
         "tags": metadata.get("tags", []),
         "author": author,
-        "article_type": metadata.get("article_type", ""),
+        "article_type": article_type,
         "word_count": metadata.get("word_count", 0),
         "qa_score": metadata.get("score", 0),
-        "qa_feedback": metadata.get("feedback", ""),
-        "featured_image": metadata.get("featured_image", ""),
+        "qa_feedback": qa_feedback,
+        "featured_image": featured_image,
         "_factory": {
             "run_id": metadata.get("run_id", ""),
             "article_id": metadata.get("article_id", ""),
