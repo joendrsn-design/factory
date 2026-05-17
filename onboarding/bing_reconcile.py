@@ -15,7 +15,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from .config import load_config
 from .bing import BingWebmasterClient
 from .errors import BingWebmasterError
 
@@ -127,13 +126,15 @@ def reconcile(
     Returns:
         Summary dict with total_checked, verified, still_pending, errors.
     """
-    config = load_config()
+    import os
 
-    if not config.bing_api_key:
+    bing_api_key = os.environ.get("BING_WEBMASTER_API_KEY") or os.environ.get("BING_API_KEY")
+
+    if not bing_api_key:
         logger.warning("Bing API key not configured, skipping reconciliation")
         return {"error": "no_api_key"}
 
-    bing = BingWebmasterClient(config.bing_api_key)
+    bing = BingWebmasterClient(bing_api_key)
 
     # Initialize Supabase if not provided
     if supabase_client is None:
