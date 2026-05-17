@@ -14,7 +14,34 @@ Two-phase research:
 
 Research Vault:
   Before running new research, checks vault for existing research
-  on the same topic. If fresh enough (per site config), reuses it.
+  on the same topic. If fresh enough AND high-quality enough, reuses it.
+  Vault scoring: 60% freshness + 40% source quality (Tier 1-2 ratio).
+  Topic matching uses embeddings (threshold 0.85) with word-overlap fallback.
+
+Source Quality Discipline:
+  - Every source is assigned a tier (1-4) based on objective characteristics
+  - Tier 1: peer-reviewed journals, Cochrane, government guidelines
+  - Tier 2: reputable medical orgs, major news citing primary sources
+  - Tier 3: trade publications, aggregators citing primary sources
+  - Tier 4: blogs, wellness sites, marketing content — avoid
+  - Clinical sites require majority Tier 1-2 sources
+
+Source Verification:
+  - Every cited URL is HEAD-checked after LLM synthesis
+  - Clinical sites get deep verification (title word matching)
+  - URLs not in search results are flagged as potential hallucinations
+  - Unverified sources can be dropped or flagged per site config
+
+Statistics Provenance:
+  - Every statistic captures population, sample_size, methodology
+  - data_year vs publication_year distinguished
+  - is_derivable flag for Write module's "sourced or derived" rule
+
+Voice-Conditional Research Shape:
+  - Clinical: PICO framework, effect sizes, safety signals
+  - Philosophy: primary texts, scholarly editions, passages
+  - Trading: primary data, timeframes, instruments
+  - DTC Health: evidence-based, consumer-translated
 
 Usage:
     python research.py submit --input pipeline/topics
@@ -29,11 +56,13 @@ Web search config (env vars):
 """
 
 import os
+import re
 import json
 import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -155,7 +184,10 @@ def get_search_provider() -> SearchProvider:
 class ResearchVault:
     """
     Checks for existing research before running new queries.
-    If relevant, recent research exists, skip the API call and reuse.
+    If relevant, recent, AND high-quality research exists, reuse it.
+
+    Scoring: 60% freshness + 40% source quality (Tier 1-2 ratio).
+    Topic matching uses embeddings (threshold 0.85) with word-overlap fallback.
     """
 
     def __init__(self, vault_dir: str = "pipeline/research_vault"):
@@ -168,12 +200,21 @@ class ResearchVault:
         site_id: str,
         max_age_days: int = 30,
         shared_sites: list[str] = None,
+        min_tier_1_2_ratio: float = 0.0,
     ) -> Optional[tuple[dict, str]]:
         """
-        Search vault for existing research on this topic.
-        Checks both the requesting site and any shared sites.
+        Search vault for existing research, scoring by freshness AND quality.
+        Returns the best match meeting both freshness and quality thresholds.
 
-        Returns (metadata, body) if found and fresh, None otherwise.
+        Args:
+            topic: The topic to search for
+            site_id: Primary site ID
+            max_age_days: Maximum age for freshness scoring
+            shared_sites: Additional sites to check for shared research
+            min_tier_1_2_ratio: Minimum ratio of Tier 1-2 sources required
+
+        Returns:
+            (metadata, body) if found meeting thresholds, None otherwise
         """
         # Sites to check
         check_sites = [site_id]
@@ -185,6 +226,8 @@ class ResearchVault:
         # Normalize topic for matching
         topic_lower = topic.lower().strip()
 
+        candidates = []  # list of (meta, body, score)
+
         for check_site in check_sites:
             artifacts = load_artifacts_from_dir(
                 str(self.vault_dir),
@@ -193,35 +236,84 @@ class ResearchVault:
             )
 
             for meta, body, fpath in artifacts:
-                # Topic match (fuzzy: check if core words overlap)
+                # Topic match (semantic or word-overlap)
                 existing_topic = meta.get("topic", "").lower().strip()
                 if not self._topics_match(topic_lower, existing_topic):
                     continue
 
-                # Freshness check
+                # Freshness scoring
                 timestamp_str = meta.get("timestamp", "")
                 try:
                     ts = datetime.fromisoformat(timestamp_str)
                     if ts < cutoff:
                         logger.debug(f"[vault] Found but stale: {existing_topic}")
                         continue
+                    age_days = (datetime.now(timezone.utc) - ts).days
+                    freshness_score = max(0, 1 - (age_days / max_age_days))
                 except (ValueError, TypeError):
                     continue
 
-                logger.info(f"[vault] ✅ Cache hit: '{existing_topic}' from {meta.get('site_id')}")
-                return meta, body
+                # Quality scoring based on source tiers
+                sources = meta.get("sources", [])
+                tier_1_2_count = sum(
+                    1 for s in sources if int(s.get("tier", 4)) <= 2
+                )
+                quality_score = tier_1_2_count / len(sources) if sources else 0
 
-        return None
+                # Skip if doesn't meet quality threshold
+                if quality_score < min_tier_1_2_ratio:
+                    logger.debug(
+                        f"[vault] '{existing_topic}' below quality threshold: "
+                        f"{quality_score:.0%} < {min_tier_1_2_ratio:.0%}"
+                    )
+                    continue
+
+                # Combined score: 60% freshness + 40% quality
+                combined = 0.6 * freshness_score + 0.4 * quality_score
+                candidates.append((meta, body, combined))
+
+        if not candidates:
+            return None
+
+        # Return the highest-scoring candidate
+        candidates.sort(key=lambda x: x[2], reverse=True)
+        best_meta, best_body, best_score = candidates[0]
+        logger.info(
+            f"[vault] ✅ Cache hit (score {best_score:.2f}): "
+            f"'{best_meta.get('topic')}' from {best_meta.get('site_id')}"
+        )
+        return best_meta, best_body
 
     def deposit(self, metadata: dict, body: str) -> Path:
         """Deposit research into the vault for future reuse."""
         return save_artifact(metadata, body, str(self.vault_dir))
 
-    def _topics_match(self, topic_a: str, topic_b: str) -> bool:
+    def _topics_match(self, topic_a: str, topic_b: str, threshold: float = 0.85) -> bool:
         """
-        Simple topic matching: checks if core words overlap significantly.
-        Not perfect but catches "magnesium threonate sleep" ≈ "magnesium threonate and sleep quality"
+        Semantic topic matching using embeddings.
+        Falls back to word-overlap if embeddings unavailable.
+
+        Higher threshold (0.85) than topic-generator dedup (0.82) because
+        vault reuse should be more conservative — better to re-research
+        than reuse stale-but-similar work.
         """
+        try:
+            from linking.embeddings import get_embedder
+            import numpy as np
+
+            embedder = get_embedder()
+            emb_a = embedder.embed(topic_a)
+            emb_b = embedder.embed(topic_b)
+
+            # Cosine similarity
+            sim = np.dot(emb_a, emb_b) / (np.linalg.norm(emb_a) * np.linalg.norm(emb_b))
+            return sim >= threshold
+        except Exception as e:
+            logger.debug(f"[vault] Embedding match unavailable, using word overlap: {e}")
+            return self._word_overlap_match(topic_a, topic_b)
+
+    def _word_overlap_match(self, topic_a: str, topic_b: str) -> bool:
+        """Fallback word-overlap matching (original logic, more conservative)."""
         words_a = set(topic_a.split()) - {"and", "the", "of", "for", "in", "on", "a", "an"}
         words_b = set(topic_b.split()) - {"and", "the", "of", "for", "in", "on", "a", "an"}
 
@@ -231,7 +323,8 @@ class ResearchVault:
         overlap = words_a & words_b
         smaller = min(len(words_a), len(words_b))
 
-        return len(overlap) / smaller >= 0.6
+        # Raised from 0.6 to 0.7 — more conservative for vault reuse
+        return len(overlap) / smaller >= 0.7
 
 
 # ── Research Module ─────────────────────────────────────────
@@ -277,9 +370,12 @@ class ResearchModule(BaseModule):
         research_cfg = site_context.research
         max_age = research_cfg.get("max_research_age_days", 30)
         shared_sites = research_cfg.get("shared_with", [])
+        min_tier_1_2_ratio = research_cfg.get("source_quality", {}).get("min_tier_1_2_ratio", 0.0)
 
-        # 1. CHECK VAULT
-        cached = self.vault.find_existing(topic, site_id, max_age, shared_sites)
+        # 1. CHECK VAULT (scores by freshness AND quality)
+        cached = self.vault.find_existing(
+            topic, site_id, max_age, shared_sites, min_tier_1_2_ratio
+        )
         if cached:
             cached_meta, cached_body = cached
             # Update metadata to reflect this run
@@ -325,6 +421,52 @@ class ResearchModule(BaseModule):
 
         return out_meta, out_body
 
+    def _build_search_queries(
+        self,
+        topic: str,
+        site_context: SiteContext,
+        config: dict,
+    ) -> list[str]:
+        """
+        Build search queries calibrated to depth, niche, and current date.
+
+        Returns niche-aware queries that:
+        - Use current year (not hardcoded)
+        - Include evidence-focused queries for clinical niches
+        - Include counterargument query at deep+ levels
+        """
+        current_year = datetime.now().year
+        last_year = current_year - 1
+        niche = site_context.niche.lower()
+
+        queries = [topic]  # Primary query — just the topic itself
+
+        if config["queries"] >= 2:
+            # Evidence-focused query, niche-conditional
+            if any(k in niche for k in ["medical", "clinical", "pathology", "health"]):
+                queries.append(f"{topic} systematic review meta-analysis")
+            elif any(k in niche for k in ["trading", "finance"]):
+                queries.append(f"{topic} primary data SEC filing")
+            elif any(k in niche for k in ["philosophy", "stoic"]):
+                queries.append(f"{topic} primary text translation")
+            else:
+                queries.append(f"{topic} research evidence")
+
+        if config["queries"] >= 3:
+            # Recency query, niche-conditional (uses current year, not hardcoded)
+            if any(k in niche for k in ["medical", "clinical"]):
+                queries.append(f"{topic} {last_year} {current_year} clinical guidelines")
+            elif any(k in niche for k in ["trading", "finance"]):
+                queries.append(f"{topic} {current_year} current data")
+            else:
+                queries.append(f"{topic} {current_year} recent findings")
+
+        if config["queries"] >= 4:
+            # Counterargument / nuance query — defends against echo-chamber sourcing
+            queries.append(f"{topic} criticism limitations debate")
+
+        return queries
+
     def _do_web_search(
         self,
         topic: str,
@@ -342,16 +484,8 @@ class ResearchModule(BaseModule):
         }
         config = search_configs.get(research_depth, search_configs["moderate"])
 
-        # Build search queries (primary + variations)
-        queries = [topic]
-        niche = site_context.niche
-
-        if config["queries"] >= 2:
-            queries.append(f"{topic} research studies evidence")
-        if config["queries"] >= 3:
-            queries.append(f"{topic} benefits risks {niche}")
-        if config["queries"] >= 4:
-            queries.append(f"{topic} latest findings 2025 2026")
+        # Build niche-aware, date-aware search queries
+        queries = self._build_search_queries(topic, site_context, config)
 
         all_results = []
         seen_urls = set()
@@ -368,6 +502,207 @@ class ResearchModule(BaseModule):
 
         logger.info(f"[research] Web search: {len(all_results)} unique sources from {len(queries)} queries")
         return all_results
+
+    # ── Source Verification ────────────────────────────────
+
+    def _verify_sources(self, sources: list[dict], deep_verify: bool = False) -> list[dict]:
+        """
+        Verify that cited sources actually exist.
+
+        Light verification (default): HEAD request, check for 200 response.
+        Deep verification (clinical articles): GET, check that source title
+        appears in the page, optionally check that cited stat values appear.
+
+        Returns sources with added 'verification' field:
+        {
+            'verified': bool,
+            'http_status': int or None,
+            'verified_at': iso timestamp,
+            'verification_notes': str,
+        }
+        """
+        import requests as req
+
+        verified_sources = []
+        for src in sources:
+            url = src.get("url", "").strip()
+            verification = {
+                "verified": False,
+                "http_status": None,
+                "verified_at": datetime.now(timezone.utc).isoformat(),
+                "verification_notes": "",
+            }
+
+            # Skip if already verified from search provider
+            if src.get("verification", {}).get("from") == "search_provider":
+                src["verification"]["verified"] = True
+                verified_sources.append(src)
+                continue
+
+            if not url or not url.startswith(("http://", "https://")):
+                verification["verification_notes"] = "Invalid or missing URL"
+                src["verification"] = verification
+                verified_sources.append(src)
+                continue
+
+            try:
+                # Light verification: HEAD request
+                resp = req.head(url, timeout=10, allow_redirects=True,
+                               headers={"User-Agent": "ArticleFactory/1.0 (research verification)"})
+                verification["http_status"] = resp.status_code
+
+                if resp.status_code < 400:
+                    verification["verified"] = True
+                else:
+                    verification["verification_notes"] = f"HTTP {resp.status_code}"
+
+                # Deep verification for clinical sources
+                if deep_verify and resp.status_code < 400:
+                    try:
+                        full_resp = req.get(
+                            url, timeout=15,
+                            headers={"User-Agent": "ArticleFactory/1.0 (research verification)"}
+                        )
+                        body_lower = full_resp.text.lower()
+                        title = src.get("title", "").lower()
+                        # Check that some portion of the title appears in the page
+                        title_words = [w for w in title.split() if len(w) > 4]
+                        if title_words:
+                            matches = sum(1 for w in title_words if w in body_lower)
+                            if matches < len(title_words) * 0.5:
+                                verification["verification_notes"] = (
+                                    f"Title words match {matches}/{len(title_words)} — "
+                                    f"possible mismatch"
+                                )
+                                verification["verified"] = False
+                    except Exception as e:
+                        verification["verification_notes"] = f"Deep verify failed: {e}"
+
+            except req.exceptions.Timeout:
+                verification["verification_notes"] = "Request timeout"
+            except req.exceptions.RequestException as e:
+                verification["verification_notes"] = f"Request failed: {type(e).__name__}"
+            except Exception as e:
+                verification["verification_notes"] = f"Verification error: {e}"
+
+            src["verification"] = verification
+            verified_sources.append(src)
+
+        return verified_sources
+
+    def _check_source_diversity(self, sources: list[dict]) -> dict:
+        """
+        Detect echo-chamber sourcing where many sources point to the same primary.
+        Returns diversity metrics for QA visibility.
+        """
+        # Domain diversity
+        domains = set()
+        for src in sources:
+            url = src.get("url", "")
+            if url:
+                try:
+                    domain = urlparse(url).netloc.replace("www.", "")
+                    domains.add(domain)
+                except Exception:
+                    continue
+
+        # Tier diversity
+        tier_counts = {}
+        for src in sources:
+            tier = src.get("tier", 4)
+            tier_counts[tier] = tier_counts.get(tier, 0) + 1
+
+        # Type diversity
+        type_counts = {}
+        for src in sources:
+            stype = src.get("type", "unknown")
+            type_counts[stype] = type_counts.get(stype, 0) + 1
+
+        # Primary source presence
+        primary_count = sum(1 for s in sources if s.get("primary_or_secondary") == "primary")
+
+        metrics = {
+            "total_sources": len(sources),
+            "unique_domains": len(domains),
+            "domain_diversity_ratio": len(domains) / len(sources) if sources else 0,
+            "tier_distribution": tier_counts,
+            "type_distribution": type_counts,
+            "primary_source_count": primary_count,
+            "primary_source_ratio": primary_count / len(sources) if sources else 0,
+        }
+
+        warnings = []
+        if metrics["domain_diversity_ratio"] < 0.6 and len(sources) >= 5:
+            warnings.append("Low domain diversity — possible echo-chamber sourcing")
+        if metrics["primary_source_ratio"] < 0.3 and len(sources) >= 5:
+            warnings.append("Low primary-source ratio — research may be over-aggregated")
+        if len(sources) >= 5 and tier_counts.get(1, 0) == 0:
+            warnings.append("No Tier 1 sources — consider adding foundational evidence")
+
+        metrics["warnings"] = warnings
+        return metrics
+
+    def _merge_sources(
+        self,
+        llm_sources: list[dict],
+        search_results: list[dict],
+    ) -> list[dict]:
+        """
+        Merge LLM-asserted sources with web-search sources.
+        LLM sources are kept only if they correspond to a real search result URL.
+        Search results not cited by LLM are kept as 'available_but_uncited' for QA.
+
+        This is the upstream defense against hallucinated citations.
+        """
+        if not search_results:
+            return llm_sources
+
+        if not llm_sources:
+            # Convert search results to source format
+            return [
+                {
+                    "source_id": f"src_{i+1:03d}",
+                    "title": r.get("title", ""),
+                    "url": r.get("url", ""),
+                    "publisher": urlparse(r.get("url", "")).netloc.replace("www.", ""),
+                    "snippet": r.get("snippet", "")[:200],
+                    "type": "unknown",
+                    "tier": 3,  # Default to caution-tier when LLM didn't characterize
+                    "relevance": "medium",
+                    "primary_or_secondary": "secondary",
+                    "verification": {"verified": True, "from": "search_provider"},
+                }
+                for i, r in enumerate(search_results)
+            ]
+
+        # Both present — match LLM citations to search URLs
+        search_urls = {r.get("url", "").lower(): r for r in search_results}
+        merged = []
+
+        for src in llm_sources:
+            url = src.get("url", "").lower()
+            if url in search_urls:
+                # LLM cited a real search result — keep with LLM characterization
+                search_data = search_urls[url]
+                src["snippet"] = src.get("snippet") or search_data.get("snippet", "")[:200]
+                src["verification"] = {
+                    "verified": True,
+                    "from": "search_provider",
+                    "matched_search_result": True,
+                }
+                merged.append(src)
+            else:
+                # LLM cited a URL not in search results — possible hallucination
+                # Keep but flag for verification (HEAD check happens in _verify_sources)
+                src["verification"] = {
+                    "verified": False,
+                    "from": "llm_only",
+                    "matched_search_result": False,
+                    "verification_notes": "URL not in search results — verify before use",
+                }
+                merged.append(src)
+
+        return merged
 
     # ── Prompt Construction ─────────────────────────────────
 
@@ -386,10 +721,11 @@ class ResearchModule(BaseModule):
         citation_required = False
         if article_type:
             research_depth = article_type.get("research_depth", "moderate")
-            citation_required = article_type.get("citation_required", False)
+            citation_required = article_type.get("citation_required", True)
 
         audience = site_context.audience
         voice = site_context.voice
+        niche = site_context.niche.lower()
 
         depth_instructions = {
             "shallow": "Provide a concise overview. 3-5 key points. Brief and focused.",
@@ -397,6 +733,57 @@ class ResearchModule(BaseModule):
             "deep": "Provide comprehensive analysis. 8-12 key findings. Cite specific studies, data points, and mechanisms of action. Include nuance and conflicting evidence.",
             "exhaustive": "Provide exhaustive coverage. 12+ key findings. Every major study, every mechanism, every counterargument. This is reference-grade research.",
         }
+
+        # Voice-conditional research shape guidance (Change 6)
+        niche_research_guidance = ""
+        if any(k in niche for k in ["philosophy", "stoic", "contemplat", "spiritual"]):
+            niche_research_guidance = """
+=== RESEARCH SHAPE — Contemplative/Philosophical ===
+This is not a clinical literature review. The research brief should:
+- Identify the primary text(s) and authoritative translations/editions
+- Surface relevant passages with citations to the standard reference (Meditations 4.7,
+  Republic 514a, Summa I-II, Q.6, etc.)
+- Note major scholarly interpretations only when they bear on the article
+- Capture historical context only when it changes how the idea reads today
+- The "statistics" array will usually be empty; this is fine.
+- Sources are primary texts and major scholarly works, not search results.
+- Total brief length: shorter than for clinical work. Aim for 600-1200 words.
+"""
+        elif any(k in niche for k in ["medical", "clinical", "pathology"]):
+            niche_research_guidance = """
+=== RESEARCH SHAPE — Clinical/Medical ===
+This is reference-grade medical research. The brief should:
+- Lead with foundational evidence (RCTs, meta-analyses, guidelines)
+- Specify population, intervention, comparator, and outcome (PICO) for studies
+- Include effect sizes with confidence intervals where reported
+- Note conflicting evidence and address it explicitly
+- Flag safety signals, contraindications, and special populations
+- Distinguish between guideline recommendations and emerging evidence
+- Tier 1 sources should be majority of citations
+- Statistics should include sample sizes and methodology notes
+"""
+        elif any(k in niche for k in ["trading", "finance"]):
+            niche_research_guidance = """
+=== RESEARCH SHAPE — Trading/Finance ===
+This is decision-grade financial research. The brief should:
+- Cite primary data (SEC filings, exchange data, central bank releases) wherever possible
+- For technical/setup articles: focus on price action history, not commentary
+- Specify the timeframe and instrument for any technical claim
+- Note that historical performance does not predict future results in the brief
+- For market structure claims: prefer original studies over secondary commentary
+- Avoid forecast-heavy sources (price predictions); prefer analytical sources
+"""
+        elif any(k in niche for k in ["health", "longevity", "wellness", "supplement"]):
+            niche_research_guidance = """
+=== RESEARCH SHAPE — Health/Wellness DTC ===
+This is evidence-based consumer health research. The brief should:
+- Lead with peer-reviewed evidence; demote wellness blogs to background
+- Translate clinical terminology for general audiences in the brief
+- Include effect sizes when available, not just "studies show"
+- Address safety, dosing, and contraindications explicitly
+- Note where evidence is limited or mixed — do not overstate
+- For supplement topics: distinguish between forms (e.g., magnesium oxide vs. glycinate)
+"""
 
         system = f"""You are the Research module of an automated article factory.
 Your job: produce a comprehensive research brief that will be used to plan and write an article.
@@ -407,6 +794,7 @@ AUDIENCE: {audience.get('profile', 'General')} | Expertise: {audience.get('exper
 RESEARCH DEPTH: {research_depth}
 {depth_instructions.get(research_depth, depth_instructions['moderate'])}
 CITATIONS REQUIRED: {citation_required}
+{niche_research_guidance}
 
 Your output has TWO parts:
 
@@ -418,7 +806,39 @@ PART 1: A JSON block (wrapped in ```json fences) containing structured metadata:
         "Finding 2 with specific data"
     ],
     "sources": [
-        {{"title": "Source Title", "url": "https://...", "snippet": "Key quote or summary", "relevance": "high|medium|low"}}
+        {{
+            "source_id": "src_001",
+            "title": "Source Title",
+            "url": "https://...",
+            "publisher": "Journal name, organization, or domain",
+            "type": "peer_reviewed | government | guideline | meta_analysis | systematic_review | clinical_trial | preprint | reputable_organization | reputable_news | trade_publication | blog | aggregator | unknown",
+            "tier": "1 | 2 | 3 | 4",
+            "year": 2025,
+            "publication_date": "YYYY-MM-DD or YYYY",
+            "snippet": "Key quote or summary, max 200 chars",
+            "relevance": "high | medium | low",
+            "primary_or_secondary": "primary | secondary",
+            "notes": "Methodology notes, sample size, population if relevant"
+        }}
+    ],
+    "statistics": [
+        {{
+            "stat_id": "stat_001",
+            "value": "48%",
+            "value_numeric": 48.0,
+            "unit": "percent",
+            "context": "US adults whose magnesium intake fell below the EAR",
+            "source_id": "src_001",
+            "publication_year": 2024,
+            "data_year": 2017,
+            "data_year_range": "2013-2018",
+            "population": "Non-pregnant US adults 19+, NHANES",
+            "sample_size": 8341,
+            "methodology_note": "24-hour dietary recall, two non-consecutive days",
+            "confidence": "high | medium | low",
+            "is_derivable": true,
+            "derivation_note": "Reported figure or trivially calculable from source"
+        }}
     ],
     "source_count": 8,
     "confidence": "high|medium|low",
@@ -426,7 +846,77 @@ PART 1: A JSON block (wrapped in ```json fences) containing structured metadata:
 }}
 ```
 
-PART 2: A detailed research brief in markdown. This is the meat — the actual research content that the Planning and Writing modules will use. Write it like a thorough research document:
+=== SOURCE TIERING (assign tier 1-4) ===
+
+TIER 1 — Foundational evidence:
+- Peer-reviewed journal articles (NEJM, Lancet, JAMA, Cell, Nature, etc.)
+- Cochrane systematic reviews and meta-analyses
+- Government clinical guidelines (NIH, CDC, WHO, FDA, NICE)
+- Major specialty society guidelines (ACC/AHA, ASCO, ESMO, etc.)
+- Federal statistical agencies (BLS, BEA, Federal Reserve, SEC filings)
+
+TIER 2 — Reputable secondary:
+- Reputable medical organizations (Mayo Clinic, Cleveland Clinic, academic medical centers)
+- Major news outlets reporting on primary sources (Reuters, AP, Bloomberg, FT, WSJ)
+- Industry research from established firms (McKinsey, Gartner, peer-reviewed think tanks)
+- Preprints from established research groups (use cautiously, note as preprint)
+
+TIER 3 — Use with caution:
+- Trade publications and industry blogs
+- Local news, opinion pieces in major outlets
+- Health information aggregators (WebMD, Healthline) — only when they cite primary sources you can verify
+- General-interest publications covering specialty topics
+
+TIER 4 — Avoid unless no alternative:
+- Personal blogs, wellness sites, marketing content disguised as content
+- Social media posts, forum threads
+- Unverified preprints, retracted papers
+- Aggregators that don't cite primary sources
+- Content marketing from product manufacturers
+
+DEFAULT BEHAVIOR:
+- For clinical/medical articles: REQUIRE majority of citations to be Tier 1-2.
+  Reject the brief if more than 25% of sources are Tier 3-4.
+- For DTC health: Aim for at least 60% Tier 1-2.
+- For trading/finance: Tier 1 = primary data (SEC, Fed, exchanges). Tier 2 = major financial press. Avoid Tier 3-4 entirely for factual claims.
+- For philosophy/contemplative: Tier system applies less directly — name primary texts and major scholarly editions/translations as Tier 1-2.
+
+PRIMARY VS SECONDARY:
+- primary: original research, original reporting, primary source documents
+- secondary: aggregating, summarizing, or reporting on primary sources
+
+NEVER cite a Tier 4 source as primary evidence for a clinical or factual claim.
+
+=== STATISTICS PROVENANCE RULES ===
+
+For EVERY statistic extracted, capture:
+- value: the figure as it appears in the source (with unit and decimals)
+- value_numeric: the numeric component for charting/comparison
+- publication_year: year the source was published
+- data_year: year the data refers to (often different from publication year)
+- data_year_range: if the figure spans multiple years
+- population: who the figure describes — be specific
+- sample_size: n value if reported
+- methodology_note: brief description of how the figure was generated
+- is_derivable: true if Write can re-derive this from cited primary data,
+  false if it must be quoted directly
+
+DEFAULT CAUTION:
+- If a source presents a number without methodology, mark confidence: medium
+- If a source presents a number without a primary source citation, mark confidence: low
+- Round-number forecasts ("1 billion users by 2030") with no derivation: do NOT extract as statistics.
+  Note them in the brief as "claimed projection" but exclude from the statistics array.
+
+=== PART 2: RESEARCH BRIEF ===
+
+A detailed research brief in markdown. This is the meat — the actual research content that the Planning and Writing modules will use.
+
+IMPORTANT: The research brief will be consumed by Planning and Write modules. It should be
+written as research notes, not as draft article prose. Avoid the rhetorical patterns of
+finished articles (no antithesis, no rhetorical questions, no manufactured stakes).
+State findings declaratively. Let Planning shape the narrative.
+
+Write it like a thorough research document:
 - Organize by themes/subtopics
 - Include specific data points, statistics, study results
 - Note mechanisms of action where relevant
@@ -491,19 +981,64 @@ The brief should be detailed enough that a writer can produce a full article wit
         # Extract the brief (everything after the JSON block)
         brief_body = self._extract_brief(response_text)
 
-        # Build sources list — merge LLM-cited sources with web search sources
-        llm_sources = json_data.get("sources", [])
+        # Get research config from site context
+        research_cfg = site_context.research
+        quality_cfg = research_cfg.get("source_quality", {})
 
-        # If we had web search results, prefer those URLs
-        if search_results:
-            # Use LLM sources but validate/enrich with search results
-            final_sources = llm_sources if llm_sources else [
-                {"title": r["title"], "url": r["url"],
-                 "snippet": r["snippet"][:200], "relevance": "medium"}
-                for r in search_results
-            ]
-        else:
-            final_sources = llm_sources
+        # Build sources list — careful merge of LLM-cited sources with search results
+        llm_sources = json_data.get("sources", [])
+        final_sources = self._merge_sources(llm_sources, search_results or [])
+
+        # Verify sources exist (HEAD check, optionally deep verify)
+        deep_verify = research_cfg.get("deep_verify_sources", False)
+        final_sources = self._verify_sources(final_sources, deep_verify=deep_verify)
+
+        # Drop or flag unverified sources
+        unverified = [s for s in final_sources if not s.get("verification", {}).get("verified")]
+        unverified_count = len(unverified)
+
+        if unverified:
+            logger.warning(
+                f"[research] {len(unverified)}/{len(final_sources)} sources failed verification"
+            )
+
+            # For clinical sites, drop unverified sources entirely
+            if research_cfg.get("drop_unverified_sources", False):
+                verified_only = [s for s in final_sources if s.get("verification", {}).get("verified")]
+                if len(verified_only) >= 3:  # Keep some sources
+                    final_sources = verified_only
+                    logger.info(f"[research] Dropped {len(unverified)} unverified sources")
+                # else: keep all but flag prominently
+
+        # Check source quality tiering (Change 1)
+        tier_counts = {1: 0, 2: 0, 3: 0, 4: 0}
+        for src in final_sources:
+            tier = int(src.get("tier", 4))
+            tier_counts[tier] = tier_counts.get(tier, 0) + 1
+
+        source_quality_warning = None
+        min_tier_1_2_ratio = quality_cfg.get("min_tier_1_2_ratio", 0.0)
+
+        if final_sources:
+            high_tier_ratio = (tier_counts[1] + tier_counts[2]) / len(final_sources)
+            if high_tier_ratio < min_tier_1_2_ratio:
+                logger.warning(
+                    f"[research] Source quality below threshold: "
+                    f"{high_tier_ratio:.0%} Tier 1-2 (required {min_tier_1_2_ratio:.0%})"
+                )
+                source_quality_warning = {
+                    "tier_distribution": tier_counts,
+                    "high_tier_ratio": high_tier_ratio,
+                    "required": min_tier_1_2_ratio,
+                }
+
+        # Check source diversity (Change 5)
+        diversity_metrics = self._check_source_diversity(final_sources)
+
+        if diversity_metrics["warnings"]:
+            logger.warning(
+                f"[research] Source diversity issues: {diversity_metrics['warnings']}"
+            )
 
         # Build metadata
         meta = research_metadata(
@@ -518,7 +1053,18 @@ The brief should be detailed enough that a writer can produce a full article wit
             key_findings=json_data.get("key_findings", []),
             sources=final_sources,
             from_cache=False,
+            statistics=json_data.get("statistics", []),
         )
+
+        # Add new quality/diversity metadata for QA visibility
+        meta["source_diversity"] = diversity_metrics
+        meta["gaps"] = json_data.get("gaps", [])
+
+        if source_quality_warning:
+            meta["source_quality_warning"] = source_quality_warning
+
+        if unverified_count > 0:
+            meta["unverified_source_count"] = unverified_count
 
         return meta, brief_body
 
@@ -552,7 +1098,7 @@ The brief should be detailed enough that a writer can produce a full article wit
                             break
 
         logger.warning("[research] No valid JSON found in response, using empty metadata")
-        return {"key_findings": [], "sources": [], "source_count": 0}
+        return {"key_findings": [], "sources": [], "statistics": [], "source_count": 0}
 
     def _extract_brief(self, text: str) -> str:
         """Extract the research brief (everything after the JSON block)."""
@@ -639,13 +1185,15 @@ The brief should be detailed enough that a writer can produce a full article wit
                 logger.error(f"[{self.module_name}] Config error for '{site_id}': {e}")
                 continue
 
-            # Check vault first
+            # Check vault first (scores by freshness AND quality)
             research_cfg = site_context.research
+            min_tier_1_2_ratio = research_cfg.get("source_quality", {}).get("min_tier_1_2_ratio", 0.0)
             cached = self.vault.find_existing(
                 metadata.get("topic", ""),
                 site_id,
                 research_cfg.get("max_research_age_days", 30),
                 research_cfg.get("shared_with", []),
+                min_tier_1_2_ratio,
             )
 
             if cached:
@@ -714,13 +1262,41 @@ The brief should be detailed enough that a writer can produce a full article wit
         return True, ""
 
     def validate_output(self, metadata: dict, body: str) -> tuple[bool, str]:
-        """Research must have findings and substantive body."""
+        """Research must have findings and substantive body, scaled by depth."""
         if not body or len(body.strip()) < 200:
             return False, f"Research brief too short ({len(body.strip())} chars, min 200)"
 
         findings = metadata.get("key_findings", [])
-        if len(findings) < 2:
-            return False, f"Only {len(findings)} key findings (min 2)"
+        depth = metadata.get("research_depth", "moderate")
+
+        # Scale minimum findings by depth
+        min_findings = {
+            "shallow": 3,
+            "moderate": 5,
+            "deep": 8,
+            "exhaustive": 12,
+        }.get(depth, 5)
+
+        if len(findings) < min_findings:
+            return False, (
+                f"Only {len(findings)} key findings for {depth} research "
+                f"(min {min_findings})"
+            )
+
+        # Validate sources structure, also scaled by depth
+        sources = metadata.get("sources", [])
+        min_sources = {
+            "shallow": 3,
+            "moderate": 5,
+            "deep": 8,
+            "exhaustive": 12,
+        }.get(depth, 5)
+
+        if len(sources) < min_sources:
+            return False, (
+                f"Only {len(sources)} sources for {depth} research "
+                f"(min {min_sources})"
+            )
 
         return True, ""
 
@@ -759,13 +1335,15 @@ The brief should be detailed enough that a writer can produce a full article wit
         site_id = metadata.get("site_id", "")
         site_context = self.loader.load(site_id)
         research_cfg = site_context.research
+        min_tier_1_2_ratio = research_cfg.get("source_quality", {}).get("min_tier_1_2_ratio", 0.0)
 
-        # Check vault
+        # Check vault (scores by freshness AND quality)
         cached = self.vault.find_existing(
             metadata.get("topic", ""),
             site_id,
             research_cfg.get("max_research_age_days", 30),
             research_cfg.get("shared_with", []),
+            min_tier_1_2_ratio,
         )
         if cached:
             cached_meta, cached_body = cached

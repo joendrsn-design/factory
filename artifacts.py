@@ -128,7 +128,7 @@ def load_artifacts_from_dir(
 
 # ── Metadata Constructors ───────────────────────────────────
 
-def base_metadata(run_id: str, article_id: str, site_id: str, article_type: str, module: str) -> dict:
+def base_metadata(run_id: str, article_id: str, site_id: str, module: str, article_type: str = "") -> dict:
     return {
         "run_id": run_id,
         "article_id": article_id,
@@ -141,17 +141,18 @@ def base_metadata(run_id: str, article_id: str, site_id: str, article_type: str,
 
 
 def topic_metadata(run_id, article_id, site_id, article_type, topic, keywords, angle="") -> dict:
-    meta = base_metadata(run_id, article_id, site_id, article_type, "topic_generator")
+    meta = base_metadata(run_id, article_id, site_id, "topic_generator", article_type)
     meta.update({"topic": topic, "keywords": keywords, "angle": angle})
     return meta
 
 
 def research_metadata(run_id, article_id, site_id, article_type, topic, research_depth,
-                       source_count, key_findings, sources, from_cache=False) -> dict:
-    meta = base_metadata(run_id, article_id, site_id, article_type, "research")
+                       source_count, key_findings, sources, from_cache=False, statistics=None) -> dict:
+    meta = base_metadata(run_id, article_id, site_id, "research", article_type)
     meta.update({
         "topic": topic, "research_depth": research_depth, "source_count": source_count,
         "key_findings": key_findings, "sources": sources, "from_cache": from_cache,
+        "statistics": statistics or [],
     })
     return meta
 
@@ -159,7 +160,7 @@ def research_metadata(run_id, article_id, site_id, article_type, topic, research
 def plan_metadata(run_id, article_id, site_id, article_type, topic, title, slug,
                    target_word_count, seo_title, meta_description, target_keywords,
                    internal_links, section_count) -> dict:
-    meta = base_metadata(run_id, article_id, site_id, article_type, "planning")
+    meta = base_metadata(run_id, article_id, site_id, "planning", article_type)
     meta.update({
         "topic": topic, "title": title, "slug": slug, "target_word_count": target_word_count,
         "seo_title": seo_title, "meta_description": meta_description,
@@ -172,7 +173,7 @@ def plan_metadata(run_id, article_id, site_id, article_type, topic, title, slug,
 def article_metadata(run_id, article_id, site_id, article_type, title, slug,
                       word_count, seo_title, meta_description, tags,
                       featured_image="", category="") -> dict:
-    meta = base_metadata(run_id, article_id, site_id, article_type, "write")
+    meta = base_metadata(run_id, article_id, site_id, "write", article_type)
     meta.update({
         "title": title, "slug": slug, "word_count": word_count,
         "seo_title": seo_title, "meta_description": meta_description, "tags": tags,
@@ -183,11 +184,33 @@ def article_metadata(run_id, article_id, site_id, article_type, title, slug,
 
 def qa_metadata(run_id, article_id, site_id, article_type, verdict, score,
                  scores_breakdown, feedback="", rewrite_instructions="", rewrite_count=0) -> dict:
-    meta = base_metadata(run_id, article_id, site_id, article_type, "qa")
+    meta = base_metadata(run_id, article_id, site_id, "qa", article_type)
     meta.update({
         "verdict": verdict, "score": score, "scores_breakdown": scores_breakdown,
         "feedback": feedback, "rewrite_instructions": rewrite_instructions,
         "rewrite_count": rewrite_count,
+    })
+    return meta
+
+
+def angle_metadata(run_id, article_id, site_id, parent_article_id, expansion_index,
+                    angle_description, suggested_title, suggested_category, article_type,
+                    topic, unique_hook="", tone_adjustment="", target_audience="",
+                    key_findings=None, sources=None) -> dict:
+    """Metadata constructor for expansion module output (angle artifacts)."""
+    meta = base_metadata(run_id, article_id, site_id, "expansion", article_type)
+    meta.update({
+        "parent_article_id": parent_article_id,
+        "expansion_index": expansion_index,
+        "angle_description": angle_description,
+        "suggested_title": suggested_title,
+        "suggested_category": suggested_category,
+        "topic": topic,
+        "unique_hook": unique_hook,
+        "tone_adjustment": tone_adjustment,
+        "target_audience": target_audience,
+        "key_findings": key_findings or [],
+        "sources": sources or [],
     })
     return meta
 

@@ -115,6 +115,24 @@ class BaseModule(ABC):
         """Override per module for token budget."""
         return self.default_max_tokens
 
+    def get_model(self, metadata: dict, site_context: SiteContext) -> str:
+        """Override per module for dynamic model selection (e.g., cheaper models for simpler articles)."""
+        return self.model
+
+    def format_system_with_cache(self, system_prompt: str) -> list[dict]:
+        """
+        Format system prompt as content block with cache_control for prompt caching.
+        Anthropic caches the system prompt across requests with identical content,
+        reducing input token costs by ~90% for cache hits.
+        """
+        return [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"}
+            }
+        ]
+
     # ── SUBMIT: Build batch and send to Anthropic ───────────
 
     def submit(
@@ -173,9 +191,9 @@ class BaseModule(ABC):
             requests.append({
                 "custom_id": article_id,
                 "params": {
-                    "model": self.model,
+                    "model": self.get_model(metadata, site_context),
                     "max_tokens": self.get_max_tokens(metadata, site_context),
-                    "system": system_prompt,
+                    "system": self.format_system_with_cache(system_prompt),
                     "messages": [{"role": "user", "content": user_message}],
                 },
             })
@@ -374,9 +392,9 @@ class BaseModule(ABC):
             for attempt in range(1, self.max_retries + 1):
                 try:
                     response = client.messages.create(
-                        model=self.model,
+                        model=self.get_model(metadata, site_context),
                         max_tokens=self.get_max_tokens(metadata, site_context),
-                        system=system_prompt,
+                        system=self.format_system_with_cache(system_prompt),
                         messages=[{"role": "user", "content": user_message}],
                     )
 
@@ -438,9 +456,9 @@ class BaseModule(ABC):
         for attempt in range(1, self.max_retries + 1):
             try:
                 response = client.messages.create(
-                    model=self.model,
+                    model=self.get_model(metadata, site_context),
                     max_tokens=self.get_max_tokens(metadata, site_context),
-                    system=system_prompt,
+                    system=self.format_system_with_cache(system_prompt),
                     messages=[{"role": "user", "content": user_message}],
                 )
 

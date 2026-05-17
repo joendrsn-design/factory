@@ -1,0 +1,65 @@
+site_id: labpanel
+site_name: Lab Panel
+domain: labpanel.org
+tier: standard
+niche: health-longevity
+template: magazine
+categories:
+- slug: supplements
+  label: Supplements
+  description: Evidence-based supplement guides, dosing, and mechanisms
+- slug: fitness
+  label: Fitness
+  description: Exercise science, training protocols, and recovery
+- slug: nutrition
+  label: Nutrition
+  description: Diet strategies, macronutrients, and metabolic health
+- slug: sleep
+  label: Sleep
+  description: Sleep optimization, circadian health, and recovery
+- slug: labs
+  label: Labs
+  description: Blood work, biomarkers, testing protocols, and interpretation
+- slug: endocrine
+  label: Endocrine
+  description: Hormones, thyroid, testosterone, and metabolic regulation
+- slug: hot-cold
+  label: Hot & Cold
+  description: Sauna, cold plunge, heat/cold therapy protocols
+- slug: leading-voices
+  label: Leading Voices
+  description: Profiles and insights from longevity researchers
+- slug: events
+  label: Events
+  description: Conferences, summits, and community gatherings
+voice:
+  tone: authoritative yet approachable
+  persona: physician-researcher translating clinical evidence into actionable strategies
+article_types:
+- type_id: deep_dive
+  label: Deep Dive
+  description: Long-form, research-heavy article
+  word_count_min: 2000
+  word_count_max: 3500
+  frequency: weekly
+  enabled: true
+- type_id: listicle
+  label: Listicle
+  description: Scannable list-format article
+  word_count_min: 1200
+  word_count_max: 2000
+  frequency: 2x_week
+  enabled: true
+quality:
+  publish_threshold: 8.0
+  rewrite_threshold: 6.0
+  max_rewrites: 2
+output:
+  frontmatter_template:
+    site: labpanel
+    status: draft
+    author: Lab Panel
+  filename_pattern: YYYY-MM-DD-{slug}.md
+meta:
+  created_at: '2026-04-13T07:52:46Z'
+  provisioned_by: provision.py

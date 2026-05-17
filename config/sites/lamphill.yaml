@@ -7,7 +7,7 @@
 # --- IDENTITY ---
 site_id: "lamphill"
 site_name: "LampHill"
-domain: "lamphill.com"
+domain: "lamphill.org"
 tier: "flagship"
 niche: "health-longevity"
 sub_niche: "evidence-based supplements and longevity optimization"
@@ -132,6 +132,7 @@ article_types:
     seo_priority: "medium"
     frequency: "3x_week"
     enabled: true
+    model_override: "claude-haiku-4-5-20251001"  # ~49¢ savings per article
 
   - type_id: "review"
     label: "Product Review"
@@ -147,6 +148,22 @@ article_types:
       - "verdict"
     research_depth: "deep"
     citation_required: true
+    seo_priority: "high"
+    frequency: "as_needed"
+    enabled: true
+
+  - type_id: "stats_driven"
+    label: "Statistics Article"
+    description: "Data-driven reference article structured around statistics, designed as a citation target for journalists and AI systems"
+    word_count_min: 1800
+    word_count_max: 3500
+    structure_template: "stats_driven_v1"
+    research_depth: "exhaustive"
+    citation_required: true
+    citation_density_target: 6.7  # 1 cited stat per 150 words
+    requires:
+      stat_density_min: 15  # minimum statistics to qualify
+      source_count_min: 5   # minimum authoritative sources
     seo_priority: "high"
     frequency: "as_needed"
     enabled: true
@@ -192,6 +209,32 @@ products:
     - name: "LampHill Boron"
       url: "/shop/boron"
       context: "bone health, testosterone, mineral articles"
+
+# --- EXPANSION ---
+# Generate multiple articles from one research brief
+expansion:
+  enabled: true              # Enable multi-article expansion
+  expansion_count: 5         # Target articles per research brief (5x = max efficiency)
+  allow_cross_category: true # Articles can be different categories
+  angle_diversity: "high"    # low | moderate | high
+
+# --- CATEGORY QUOTAS ---
+# Limits per category to ensure even distribution across site
+category_quotas:
+  tracking_days: 7           # Rolling window for tracking publications
+  quotas:
+    # Core categories get higher limits
+    supplements: 5           # Main focus area
+    nutrition: 4
+    fitness: 4
+    sleep: 3
+    # Supporting categories get moderate limits
+    hot-cold: 3
+    endocrine: 3
+    labs: 3
+    # Niche categories get lower limits to prevent saturation
+    leading-voices: 2
+    events: 1
 
 # --- QUALITY THRESHOLDS ---
 quality:

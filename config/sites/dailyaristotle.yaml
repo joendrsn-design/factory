@@ -1,0 +1,56 @@
+site_id: dailyaristotle
+site_name: Daily Aristotle
+domain: dailyaristotle.org
+tier: standard
+niche: daily-wisdom
+template: minimal-daily
+categories:
+- slug: reflections
+  label: Reflections
+  description: Daily meditations and contemplations on timeless wisdom
+- slug: philosophy
+  label: Philosophy
+  description: Philosophical teachings and their modern applications
+- slug: virtues
+  label: Virtues
+  description: Explorations of virtue, character, and ethical living
+- slug: practices
+  label: Practices
+  description: Daily practices and exercises for wisdom cultivation
+- slug: teachings
+  label: Teachings
+  description: Core teachings from the source texts
+- slug: commentary
+  label: Commentary
+  description: Analysis and interpretation of classic passages
+voice:
+  tone: contemplative, reverent, accessible
+  persona: thoughtful guide who makes ancient wisdom practical for modern life
+article_types:
+- type_id: deep_dive
+  label: Deep Dive
+  description: Long-form, research-heavy article
+  word_count_min: 2000
+  word_count_max: 3500
+  frequency: weekly
+  enabled: true
+- type_id: listicle
+  label: Listicle
+  description: Scannable list-format article
+  word_count_min: 1200
+  word_count_max: 2000
+  frequency: 2x_week
+  enabled: true
+quality:
+  publish_threshold: 7.5
+  rewrite_threshold: 6.0
+  max_rewrites: 2
+output:
+  frontmatter_template:
+    site: dailyaristotle
+    status: draft
+    author: Daily Aristotle
+  filename_pattern: YYYY-MM-DD-{slug}.md
+meta:
+  created_at: '2026-04-13T07:49:11Z'
+  provisioned_by: provision.py

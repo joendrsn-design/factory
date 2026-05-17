@@ -9,7 +9,7 @@
 # --- IDENTITY ---
 site_id: ""                    # unique slug: "lamphill", "inside-bar", "daily-marcus-aurelius"
 site_name: ""                  # display name: "LampHill", "The Inside Bar"
-domain: ""                     # "lamphill.com"
+domain: ""                     # "lamphill.org"
 tier: ""                       # "flagship" | "daily" | "network"
 niche: ""                      # primary niche: "longevity", "trading", "philosophy"
 sub_niche: ""                  # optional narrower focus: "supplements", "price action", "stoicism"

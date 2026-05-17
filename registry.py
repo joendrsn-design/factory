@@ -37,6 +37,7 @@ Usage:
 import os
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
 
@@ -364,6 +365,84 @@ class Registry:
         except ValueError:
             return None
 
+    # ── Audit Methods ──────────────────────────────────────────
+
+    def get_yaml_sites(self, config_dir: str = "config/sites") -> set[str]:
+        """Get all site keys from YAML config files."""
+        config_path = Path(config_dir)
+        if not config_path.exists():
+            return set()
+
+        sites = set()
+        for yaml_file in config_path.glob("*.yaml"):
+            # Site key is the filename without extension
+            sites.add(yaml_file.stem)
+        return sites
+
+    def get_supabase_sites(self) -> set[str]:
+        """Get all site keys from the Supabase sites table."""
+        if self._offline:
+            return set()
+
+        try:
+            data = self._request("GET", "sites?select=site_key")
+            return {row.get("site_key") for row in data if row.get("site_key")}
+        except Exception as e:
+            logger.error(f"Failed to get Supabase sites: {e}")
+            return set()
+
+    def get_registry_sites(self) -> set[str]:
+        """Get all site keys from the factory_registry table."""
+        if self._offline:
+            return set()
+
+        try:
+            data = self._request("GET", "factory_registry?select=site_key")
+            return {row.get("site_key") for row in data if row.get("site_key")}
+        except Exception as e:
+            logger.error(f"Failed to get registry sites: {e}")
+            return set()
+
+    def audit(self, config_dir: str = "config/sites") -> list[dict]:
+        """
+        Audit all three layers: YAML, Supabase sites, factory_registry.
+        Returns a list of dicts with site_key and status for each layer.
+        """
+        yaml_sites = self.get_yaml_sites(config_dir)
+        supabase_sites = self.get_supabase_sites()
+        registry_sites = self.get_registry_sites()
+
+        # Union of all sites
+        all_sites = yaml_sites | supabase_sites | registry_sites
+
+        results = []
+        for site_key in sorted(all_sites):
+            has_yaml = site_key in yaml_sites
+            has_supabase = site_key in supabase_sites
+            has_registry = site_key in registry_sites
+
+            # Determine health status
+            if has_yaml and has_supabase and has_registry:
+                health = "OK"
+            elif has_yaml and has_supabase and not has_registry:
+                health = "MISSING_REGISTRY"
+            elif has_yaml and not has_supabase:
+                health = "MISSING_SUPABASE"
+            elif not has_yaml and (has_supabase or has_registry):
+                health = "ORPHAN"
+            else:
+                health = "PARTIAL"
+
+            results.append({
+                "site_key": site_key,
+                "yaml": has_yaml,
+                "supabase": has_supabase,
+                "registry": has_registry,
+                "health": health,
+            })
+
+        return results
+
 
 # ── CLI ─────────────────────────────────────────────────────
 
@@ -404,6 +483,10 @@ def main():
     hist_parser = subparsers.add_parser("history", help="Show run history")
     hist_parser.add_argument("site_key", help="Site key")
     hist_parser.add_argument("--limit", type=int, default=10, help="Number of runs")
+
+    # audit command
+    audit_parser = subparsers.add_parser("audit", help="Audit all sites across YAML, Supabase, and registry")
+    audit_parser.add_argument("--config", default="config/sites", help="Site config directory")
 
     args = parser.parse_args()
     reg = Registry()
@@ -484,6 +567,52 @@ def main():
             dur = f"{r.get('duration_seconds', 0)}s"
             arts = f"{r.get('articles_published', 0)}/{r.get('articles_generated', 0)}"
             print(f"{r.get('run_id', ''):<35} {r.get('status', ''):<10} {arts:<10} {cost:<10} {dur:<10}")
+
+    elif args.command == "audit":
+        results = reg.audit(args.config)
+        if not results:
+            print("No sites found in any layer")
+            return
+
+        # Count stats
+        ok_count = sum(1 for r in results if r["health"] == "OK")
+        problem_count = len(results) - ok_count
+
+        print(f"\n{'='*75}")
+        print(f"  SITE AUDIT — {len(results)} sites found")
+        print(f"{'='*75}")
+        print(f"\n{'Site':<30} {'YAML':<8} {'Supabase':<10} {'Registry':<10} {'Health':<18}")
+        print("-" * 75)
+
+        for r in results:
+            yaml_str = "YES" if r["yaml"] else "---"
+            supa_str = "YES" if r["supabase"] else "---"
+            reg_str = "YES" if r["registry"] else "---"
+
+            # Color-code health status
+            health = r["health"]
+            if health == "OK":
+                health_str = "OK"
+            elif health == "MISSING_REGISTRY":
+                health_str = "! No Registry"
+            elif health == "MISSING_SUPABASE":
+                health_str = "! No Supabase"
+            elif health == "ORPHAN":
+                health_str = "! Orphan (no YAML)"
+            else:
+                health_str = "! Partial"
+
+            print(f"{r['site_key']:<30} {yaml_str:<8} {supa_str:<10} {reg_str:<10} {health_str:<18}")
+
+        print("-" * 75)
+        print(f"\nSummary: {ok_count} OK, {problem_count} need attention")
+
+        if problem_count > 0:
+            print("\nTo fix issues:")
+            print("  - MISSING_REGISTRY: Run 'python provision.py sync-categories --site <site>'")
+            print("                      or 'python registry.py register <site>'")
+            print("  - MISSING_SUPABASE: Run 'python provision.py new --site <site> ...'")
+            print("  - ORPHAN: Site exists in DB but no YAML config. Delete from DB or create YAML.")
 
 
 if __name__ == "__main__":

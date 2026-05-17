@@ -1,0 +1,68 @@
+site_id: ripthroughtherange
+site_name: Rip Through The Range
+domain: ripthroughtherange.com
+tier: standard
+niche: trading
+template: magazine
+categories:
+- slug: the-strat
+  label: The Strat
+  description: Rob Smith's Strat methodology and broadening formations
+- slug: setups
+  label: Setups
+  description: Specific trade setups with entry, stop, and targets
+- slug: futures
+  label: Futures
+  description: Futures trading including ES, NQ, CL
+- slug: stocks
+  label: Stocks
+  description: Stock trading setups and equity analysis
+- slug: options
+  label: Options
+  description: Options strategies, Greeks, and flow analysis
+- slug: risk-management
+  label: Risk Management
+  description: Position sizing, stops, and capital preservation
+- slug: psychology
+  label: Psychology
+  description: Trading mindset, discipline, and emotional control
+- slug: market-structure
+  label: Market Structure
+  description: Volume profile, order flow, and auction theory
+- slug: tools
+  label: Tools
+  description: Trading software, charting, and platforms
+- slug: education
+  label: Education
+  description: Foundational concepts and learning resources
+voice:
+  tone: direct, no hype, practitioner-first
+  persona: active trader who has logged screen time and shows the work
+article_types:
+- type_id: deep_dive
+  label: Deep Dive
+  description: Long-form, research-heavy article
+  word_count_min: 2000
+  word_count_max: 3500
+  frequency: weekly
+  enabled: true
+- type_id: listicle
+  label: Listicle
+  description: Scannable list-format article
+  word_count_min: 1200
+  word_count_max: 2000
+  frequency: 2x_week
+  enabled: true
+quality:
+  publish_threshold: 8.0
+  rewrite_threshold: 6.0
+  max_rewrites: 2
+output:
+  frontmatter_template:
+    site: ripthroughtherange
+    status: draft
+    author: Rip Through The Range
+  filename_pattern: YYYY-MM-DD-{slug}.md
+meta:
+  created_at: '2026-04-13T07:53:11Z'
+  provisioned_by: provision.py

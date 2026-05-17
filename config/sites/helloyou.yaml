@@ -1,0 +1,56 @@
+site_id: helloyou
+site_name: Hello You
+domain: helloyou.site
+tier: standard
+niche: personal-development
+template: magazine
+categories:
+- slug: habits
+  label: Habits
+  description: Building and maintaining good habits
+- slug: productivity
+  label: Productivity
+  description: Getting more done with less effort
+- slug: mindset
+  label: Mindset
+  description: Mental models and thinking frameworks
+- slug: relationships
+  label: Relationships
+  description: Interpersonal skills and connections
+- slug: career
+  label: Career
+  description: Professional growth and career development
+- slug: learning
+  label: Learning
+  description: Learning techniques and skill acquisition
+voice:
+  tone: honest, direct, no toxic positivity
+  persona: thoughtful practitioner sharing what actually works
+article_types:
+- type_id: deep_dive
+  label: Deep Dive
+  description: Long-form, research-heavy article
+  word_count_min: 2000
+  word_count_max: 3500
+  frequency: weekly
+  enabled: true
+- type_id: listicle
+  label: Listicle
+  description: Scannable list-format article
+  word_count_min: 1200
+  word_count_max: 2000
+  frequency: 2x_week
+  enabled: true
+quality:
+  publish_threshold: 7.5
+  rewrite_threshold: 6.0
+  max_rewrites: 2
+output:
+  frontmatter_template:
+    site: helloyou
+    status: draft
+    author: Hello You
+  filename_pattern: YYYY-MM-DD-{slug}.md
+meta:
+  created_at: '2026-04-13T07:53:17Z'
+  provisioned_by: provision.py

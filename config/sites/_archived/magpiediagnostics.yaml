@@ -1,0 +1,56 @@
+site_id: magpiediagnostics
+site_name: Magpie Diagnostics
+domain: magpiediagnostics.com
+tier: standard
+niche: technology
+template: magazine
+categories:
+- slug: ai
+  label: AI
+  description: Artificial intelligence and machine learning
+- slug: software
+  label: Software
+  description: Software development and engineering
+- slug: hardware
+  label: Hardware
+  description: Computer hardware and devices
+- slug: startups
+  label: Startups
+  description: Startup ecosystem and entrepreneurship
+- slug: security
+  label: Security
+  description: Cybersecurity and privacy
+- slug: tutorials
+  label: Tutorials
+  description: How-to guides and technical tutorials
+voice:
+  tone: technically precise, jargon where earned
+  persona: senior engineer who explains things well
+article_types:
+- type_id: deep_dive
+  label: Deep Dive
+  description: Long-form, research-heavy article
+  word_count_min: 2000
+  word_count_max: 3500
+  frequency: weekly
+  enabled: true
+- type_id: listicle
+  label: Listicle
+  description: Scannable list-format article
+  word_count_min: 1200
+  word_count_max: 2000
+  frequency: 2x_week
+  enabled: true
+quality:
+  publish_threshold: 8.0
+  rewrite_threshold: 6.0
+  max_rewrites: 2
+output:
+  frontmatter_template:
+    site: magpiediagnostics
+    status: draft
+    author: Magpie Diagnostics
+  filename_pattern: YYYY-MM-DD-{slug}.md
+meta:
+  created_at: '2026-04-13T07:53:22Z'
+  provisioned_by: provision.py

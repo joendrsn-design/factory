@@ -49,6 +49,7 @@ load_dotenv()
 
 from site_loader import SiteLoader, SiteContext
 from artifacts import load_artifacts_from_dir
+from p4_gates import run_p4_gates, update_article_status
 
 logger = logging.getLogger("article_factory.deposit")
 
@@ -303,6 +304,49 @@ class DepositEngine:
                     record["api_action"] = action
                     record["api_response"] = result
                     logger.info(f"[deposit] ✅ API {action.upper()}: {site_id}/{payload['slug']}")
+
+                    # Step 1b: Run P4 deterministic QA gates
+                    api_article_id = result.get("article_id")
+                    if api_article_id:
+                        logger.info(f"[deposit] Running P4 gates on {api_article_id}...")
+                        p4_result = run_p4_gates(api_article_id, save_results=True)
+                        record["p4_passed"] = p4_result.get("passed", False)
+                        record["p4_failures"] = p4_result.get("failure_reasons", [])
+
+                        if p4_result.get("passed"):
+                            logger.info(f"[deposit] ✅ P4 gates passed")
+                            # Update status if P4 passed and LLM score is good
+                            qa_score = payload.get("qa_score", 0)
+                            status_result = update_article_status(
+                                api_article_id, qa_score, threshold=8.0
+                            )
+                            record["final_status"] = status_result.get("status")
+                            record["status_action"] = status_result.get("action")
+                            if status_result.get("status") == "published":
+                                logger.info(f"[deposit] ✅ Auto-published: {site_id}/{payload['slug']}")
+                        else:
+                            logger.warning(
+                                f"[deposit] ⚠️  P4 gates failed ({len(p4_result.get('failure_reasons', []))} issues)"
+                            )
+                            record["final_status"] = "pending_review"
+
+                        # Step 1c: Generate embedding for internal linking (P6)
+                        # Runs regardless of P4 pass/fail - embedding aids future internal linking
+                        try:
+                            from linking.embeddings import EmbeddingService
+                            embedding_service = EmbeddingService()
+                            embed_success = embedding_service.embed_and_store(
+                                api_article_id, payload["title"], payload["body"]
+                            )
+                            if embed_success:
+                                logger.info(f"[deposit] 🔗 Embedding stored for {api_article_id}")
+                                record["embedding_stored"] = True
+                            else:
+                                logger.warning(f"[deposit] ⚠️  Embedding failed for {api_article_id}")
+                                record["embedding_stored"] = False
+                        except Exception as embed_err:
+                            logger.warning(f"[deposit] ⚠️  Embedding error: {embed_err}")
+                            record["embedding_error"] = str(embed_err)
                 except Exception as e:
                     api_error = str(e)
                     record["api_error"] = api_error
@@ -353,7 +397,19 @@ class DepositEngine:
         lines.append(f"\n**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
         lines.append(f"**Mode:** {summary.get('mode', 'api')}")
         lines.append(f"**Total scanned:** {summary['total_scanned']}")
-        lines.append(f"**Published:** {len(summary['published'])}")
+        lines.append(f"**Deposited:** {len(summary['published'])}")
+
+        # Count P4 results
+        p4_passed = sum(1 for item in summary['published'] if item.get('p4_passed') is True)
+        p4_failed = sum(1 for item in summary['published'] if item.get('p4_passed') is False)
+        auto_published = sum(1 for item in summary['published'] if item.get('final_status') == 'published')
+
+        if p4_passed or p4_failed:
+            lines.append(f"**P4 gates passed:** {p4_passed}")
+            lines.append(f"**P4 gates failed:** {p4_failed}")
+        if auto_published:
+            lines.append(f"**Auto-published:** {auto_published}")
+
         lines.append(f"**Quarantined (API failed):** {len(summary.get('fallback_to_disk', []))}")
         lines.append(f"**Skipped (rewrite):** {len(summary['skipped_rewrite'])}")
         lines.append(f"**Skipped (kill):** {len(summary['skipped_kill'])}")
@@ -365,10 +421,28 @@ class DepositEngine:
                 action = item.get("api_action", "DISK").upper()
                 if item.get("dry_run"):
                     action = "DRY_RUN"
+                p4_status = ""
+                if item.get("p4_passed") is not None:
+                    p4_status = " P4:PASS" if item["p4_passed"] else " P4:FAIL"
+                final = ""
+                if item.get("final_status"):
+                    final = f" → {item['final_status']}"
                 lines.append(
                     f"- **{item['title']}** ({item['site_id']}/{item['slug']}) — "
-                    f"{action} — score {item['score']}, {item['word_count']}w"
+                    f"{action}{p4_status}{final} — score {item['score']}, {item['word_count']}w"
                 )
+
+        # P4 gate failures (articles that passed API but failed P4)
+        p4_failures = [
+            item for item in summary["published"]
+            if item.get("p4_passed") is False
+        ]
+        if p4_failures:
+            lines.append("\n## ⚠️ P4 Gate Failures (pending review)")
+            for item in p4_failures:
+                lines.append(f"- **{item['title']}** ({item['site_id']}/{item['slug']})")
+                for failure in item.get("p4_failures", [])[:5]:
+                    lines.append(f"  - [{failure['category']}.{failure['gate']}] {failure['reason']}")
 
         if summary.get("fallback_to_disk"):
             lines.append("\n## ⚠️ Quarantined (API push failed)")

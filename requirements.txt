@@ -8,3 +8,5 @@ google-api-python-client
 google-auth
 dnspython
 supabase>=2.0.0
+boto3
+pillow

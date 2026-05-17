@@ -24,7 +24,7 @@ Options:
     --domain        Primary domain (e.g. "lamphill.org")
     --niche         Content niche (e.g. "health-longevity", "finance", "fitness")
     --template      Template slug (default: "magazine")
-    --tier          Site tier: flagship | standard | micro (default: standard)
+    --tier          Site tier: flagship|vertical|micro|daily|utility|geo (default: vertical)
     --name          Display name (default: title-cased from --site)
     --dry-run       Show what would happen without doing it
 """
@@ -167,11 +167,45 @@ NICHE_PRESETS = {
         },
         "publish_threshold": 8.0,
     },
+    "daily-wisdom": {
+        "categories": [
+            {"slug": "reflections", "label": "Reflections", "description": "Daily meditations and contemplations on timeless wisdom"},
+            {"slug": "philosophy", "label": "Philosophy", "description": "Philosophical teachings and their modern applications"},
+            {"slug": "virtues", "label": "Virtues", "description": "Explorations of virtue, character, and ethical living"},
+            {"slug": "practices", "label": "Practices", "description": "Daily practices and exercises for wisdom cultivation"},
+            {"slug": "teachings", "label": "Teachings", "description": "Core teachings from the source texts"},
+            {"slug": "commentary", "label": "Commentary", "description": "Analysis and interpretation of classic passages"},
+        ],
+        "voice": {
+            "tone": "contemplative, reverent, accessible",
+            "persona": "thoughtful guide who makes ancient wisdom practical for modern life",
+        },
+        "publish_threshold": 7.5,
+        "template": "minimal-daily",
+        "article_types": [
+            {
+                "type_id": "daily_reflection",
+                "label": "Daily Reflection",
+                "description": "Short daily meditation on a passage or theme",
+                "word_count_min": 200,
+                "word_count_max": 500,
+                "enabled": True,
+            },
+            {
+                "type_id": "deep_dive",
+                "label": "Deep Dive",
+                "description": "Extended exploration of a teaching or concept",
+                "word_count_min": 1000,
+                "word_count_max": 2000,
+                "enabled": True,
+            },
+        ],
+    },
 }
 
 # V2 templates + legacy
 VALID_TEMPLATES = ["magazine", "minimal", "editorial", "docs", "landing", "minimal-daily", "lamphill"]
-VALID_TIERS = ["flagship", "standard", "micro"]
+VALID_TIERS = ["flagship", "vertical", "micro", "daily", "utility", "geo"]
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -205,9 +239,9 @@ def fail(msg: str) -> None:
     print(f"  [FAIL] {msg}")
 
 def section(title: str) -> None:
-    print(f"\n{'─' * 60}")
+    print(f"\n{'-' * 60}")
     print(f"  {title}")
-    print(f"{'─' * 60}")
+    print(f"{'-' * 60}")
 
 # ── Supabase helpers ───────────────────────────────────────────────────────────
 
@@ -501,7 +535,7 @@ def build_supabase_row(args, preset: dict) -> dict:
         "name": name,
         "tier": args.tier,
         "site_key": args.site,
-        "template_id": args.template,
+        # template_id is UUID; template selection is handled by site config YAML
         "publish_threshold": preset["publish_threshold"],
         "auto_publish_enabled": False,
         "logo_url": f"/sites/{args.site}/logo.svg",
@@ -728,7 +762,7 @@ def cmd_list(args):
         return
 
     print(f"  {'SITE ID':<20} {'DOMAIN':<25} {'NICHE':<20} {'CATS':<5} {'TIER'}")
-    print(f"  {'─'*20} {'─'*25} {'─'*20} {'─'*5} {'─'*10}")
+    print(f"  {'-'*20} {'-'*25} {'-'*20} {'-'*5} {'-'*10}")
 
     for y in yamls:
         if y.name.startswith("_"):
@@ -968,7 +1002,7 @@ def main():
     p_new.add_argument("--domain", required=True, help="Primary domain")
     p_new.add_argument("--niche", required=True, help=f"Niche: {', '.join(NICHE_PRESETS)}")
     p_new.add_argument("--template", default="magazine", help="Template (default: magazine)")
-    p_new.add_argument("--tier", default="standard", help="Tier: flagship|standard|micro")
+    p_new.add_argument("--tier", default="vertical", help="Tier: flagship|vertical|micro|daily|utility|geo")
     p_new.add_argument("--name", default=None, help="Display name")
     p_new.add_argument("--dry-run", action="store_true", help="Preview only")
 

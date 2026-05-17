@@ -4,7 +4,7 @@ ARTICLE FACTORY — WRITE MODULE
 ============================================================
 Module 3: Takes plan artifacts → produces finished articles.
 
-Model: Opus 4.5 (voice fidelity, prose quality — don't cheap out)
+Model: Opus 4.7 (voice fidelity, prose quality — don't cheap out)
 Input folder: pipeline/plans/
 Output folder: pipeline/articles/
 
@@ -37,6 +37,7 @@ Usage:
 """
 
 import json
+import os
 import re
 import logging
 from typing import Optional
@@ -48,7 +49,90 @@ from artifacts import (
     load_artifacts_from_dir, load_artifact,
 )
 
+# P7: Image Pipeline (optional - graceful fallback if Unsplash not configured)
+try:
+    from media.pipeline import ImagePipeline
+    IMAGE_PIPELINE_AVAILABLE = True
+except ImportError:
+    IMAGE_PIPELINE_AVAILABLE = False
+
 logger = logging.getLogger("article_factory.write")
+
+
+# ── Visual Block Markdown Fallbacks ─────────────────────────
+# For stats_driven articles, charts/keystats/tables are rendered as
+# fenced blocks. Site Empire components replace these with interactive
+# visuals. Until then, emit markdown-readable versions as fallbacks.
+
+def _add_visual_fallbacks(body: str) -> str:
+    """
+    Post-process article body to add markdown fallbacks after visual blocks.
+
+    For each ```chart, ```keystat, or ```table fenced block, emit a
+    markdown-readable version immediately after. Site Empire components
+    will hide the fallback when they render the interactive version.
+    """
+    import json
+
+    # Pattern to match visual fenced blocks
+    pattern = r'```(chart|keystat|table)\n(.*?)```'
+
+    def replace_with_fallback(match):
+        block_type = match.group(1)
+        content = match.group(2).strip()
+        original = match.group(0)
+
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            # If not valid JSON, return original unchanged
+            return original
+
+        fallback = ""
+
+        if block_type == "chart":
+            # Chart fallback: description + data points as list
+            title = data.get("title", "Chart")
+            description = data.get("description", "")
+            stat_ids = data.get("stat_ids", [])
+            fallback = f"\n\n<!-- chart-fallback -->\n**{title}**"
+            if description:
+                fallback += f"\n_{description}_"
+            if stat_ids:
+                fallback += f"\n_Data: {', '.join(stat_ids)}_"
+            fallback += "\n<!-- /chart-fallback -->\n"
+
+        elif block_type == "keystat":
+            # Key stat callout fallback: bold stat with framing
+            stat_id = data.get("stat_id", "")
+            framing = data.get("framing", "")
+            value = data.get("value", "")
+            fallback = f"\n\n<!-- keystat-fallback -->\n> **{value}** — {framing}\n<!-- /keystat-fallback -->\n"
+
+        elif block_type == "table":
+            # Table fallback: markdown table
+            title = data.get("title", "")
+            columns = data.get("columns", [])
+            rows = data.get("rows", [])
+
+            if columns:
+                fallback = f"\n\n<!-- table-fallback -->\n"
+                if title:
+                    fallback += f"**{title}**\n\n"
+                # Header row
+                fallback += "| " + " | ".join(str(c) for c in columns) + " |\n"
+                fallback += "| " + " | ".join("---" for _ in columns) + " |\n"
+                # Data rows
+                for row in rows:
+                    if isinstance(row, list):
+                        fallback += "| " + " | ".join(str(cell) for cell in row) + " |\n"
+                    elif isinstance(row, dict):
+                        fallback += "| " + " | ".join(str(row.get(c, "")) for c in columns) + " |\n"
+                fallback += "<!-- /table-fallback -->\n"
+
+        return original + fallback
+
+    return re.sub(pattern, replace_with_fallback, body, flags=re.DOTALL)
 
 
 # ── Voice Profiles ──────────────────────────────────────────
@@ -212,6 +296,28 @@ Avoid: {', '.join(voice.get('avoid', []))}
 
 # ── Citation Formatter ──────────────────────────────────────
 
+def _get_citation_persona(site_context: SiteContext) -> str:
+    """
+    Get the citation persona based on site niche.
+    This determines how the writer frames their authority when citing.
+    """
+    niche = site_context.niche.lower()
+
+    if any(k in niche for k in ["medical", "clinical", "pathology", "diagnostics", "laboratory"]):
+        return "physician-researcher"
+    if any(k in niche for k in ["health", "longevity", "wellness", "supplement", "nutrition"]):
+        return "health researcher"
+    if any(k in niche for k in ["trading", "finance", "invest", "market"]):
+        return "market analyst"
+    if any(k in niche for k in ["tech", "software", "programming", "developer"]):
+        return "technical writer"
+    if any(k in niche for k in ["legal", "law", "attorney"]):
+        return "legal analyst"
+
+    # Fallback to site voice persona
+    return site_context.voice.get("persona", "subject-matter expert")
+
+
 def build_citation_instructions(site_context: SiteContext, article_type: dict, sources: list) -> str:
     """
     Build citation instructions for the writing prompt.
@@ -223,6 +329,8 @@ def build_citation_instructions(site_context: SiteContext, article_type: dict, s
     if not sources:
         return "\nCITATIONS: Required but no sources provided. Use your knowledge and note claims that should be sourced."
 
+    persona = _get_citation_persona(site_context)
+
     source_list = []
     for i, src in enumerate(sources, 1):
         title = src.get("title", f"Source {i}")
@@ -233,7 +341,7 @@ def build_citation_instructions(site_context: SiteContext, article_type: dict, s
 
     return f"""
 CITATION REQUIREMENTS:
-This article REQUIRES inline citations. You are writing as a physician-researcher.
+This article REQUIRES inline citations. You are writing as a {persona}.
 Uncited claims undermine credibility.
 
 AVAILABLE SOURCES:
@@ -264,10 +372,26 @@ RULES:
 class WriteModule(BaseModule):
 
     module_name = "write"
-    model = "claude-opus-4-6"
+    model = "claude-opus-4-7"  # Default, can be overridden per article type
     input_module = "planning"
     max_retries = 2
     default_max_tokens = 8192
+
+    def get_model(self, metadata: dict, site_context: SiteContext) -> str:
+        """
+        Get the model to use for this article.
+        Article types can specify model_override to use a cheaper model for simpler content.
+        E.g., quick_guide can use Haiku instead of Opus for ~49¢ savings per article.
+        """
+        article_type_id = metadata.get("article_type", "")
+        article_type = site_context.get_article_type(article_type_id)
+
+        if article_type and article_type.get("model_override"):
+            model = article_type["model_override"]
+            logger.info(f"[write] Using model override: {model} (article type: {article_type_id})")
+            return model
+
+        return self.model
 
     # ── Prompt Construction ─────────────────────────────────
 
@@ -290,12 +414,8 @@ class WriteModule(BaseModule):
         # Get the deep voice profile
         voice_profile = get_voice_profile(site_context)
 
-        # Get citation instructions
+        # Get citation instructions (sources come from metadata only — no body parsing)
         sources = metadata.get("sources", [])
-        # Sources might be on the research artifact that traveled through planning
-        # Check if they're in the body as JSON
-        if not sources:
-            sources = self._extract_sources_from_body(body)
         citation_instructions = build_citation_instructions(site_context, article_type, sources)
 
         # Product integration rules
@@ -343,66 +463,61 @@ This is important. Hit the target. Don't pad. Don't truncate.
 
 {voice_profile}
 
+{self._build_exemplar_block(site_context)}
+
 ADDITIONAL STYLE NOTES FROM SITE CONFIG:
 {voice.get('style_notes', 'None')}
 
 THINGS TO ABSOLUTELY AVOID:
 {json.dumps(voice.get('avoid', []))}
 
-CRITICAL — WRITE LIKE A HUMAN, NOT AN AI:
-The article MUST be indistinguishable from expert human writing. AI detectors will flag:
+=== HARD BANS (NEVER USE THESE EXACT PATTERNS) ===
+1. "It's not about X. It's about Y" / "This isn't X; it's Y" / "Not X, but Y"
+2. "turning X into Y" / "transforms X into Y" / "X becomes Y"
+3. "What nobody tells you..." / "The hard truth is..." / "Let that sink in."
+4. "Here's the thing:" / "Make no mistake:" / "Full stop."
+5. "most people don't realize" / "almost nobody is paying attention"
+6. "It's worth noting..." / "Worth keeping in mind..." / "Interestingly,"
+7. "Furthermore," / "Moreover," / "Additionally," / "That being said,"
+8. "I want to be clear..." / "Let me be clear..." / "Let me say that again."
+9. "Discover how..." / "uncover the secrets" / "reveal" (breathless discovery)
+10. "Pro tip:" / "Hot take:" / "Plot twist:" / "Here's the kicker:"
+11. Round-number forecasts without derivation ("1 billion new investors")
+12. "structural shift" / "reprices" / "asymmetric" (without adjacent mechanism)
+13. "We need to talk about..." / "unhinged" / "lands" (as engagement bait)
+14. "Whether you're X, Y, or Z" openings / tricolons in consecutive paragraphs
+15. LLM closing pattern: restatement + round-number prediction + rhetorical question + CTA
 
-NEVER USE these AI-tell phrases:
-- "In today's world/age/fast-paced..." (opening)
-- "When it comes to..." / "In the realm of..."
-- "Furthermore," / "Moreover," / "Additionally," (overused transitions)
-- "It's worth noting..." / "It's important to note..."
-- "In conclusion," / "To sum up," / "In summary,"
-- "may potentially" / "could possibly" (hedging)
-- "This is a game-changer" / "Take X to the next level"
-- "Dive deep into..." / "Unlock the power of..."
+=== WRITING PRINCIPLES ===
+1. DEFAULT TO DECLARATIVE — Make claims directly. Never frame with "It's not X, it's Y."
+2. EARN ABSTRACTIONS — Words like "structural" require an adjacent number, citation, or mechanism.
+3. SHOW, DON'T FRAME — Never tell readers they're seeing something others miss. Present the evidence.
+4. SOURCE ALL NUMBERS — No round forecasts. Expert quotes need date/venue.
+5. VARY STRUCTURE — No back-to-back antitheses, tricolons, or rhetorical questions.
 
-NEVER USE formulaic contrast structures:
-- "turning X into Y" / "transforms X into Y"
-- "It's not about X, it's about Y"
-- "He didn't X, he Y" / "She didn't X, she Y"
-- "less X, more Y" / "not X but Y"
-- "stop doing X and start doing Y"
-- "the key isn't X, it's Y"
-- "from X to Y" (as cliché transformation)
+=== VOICE DISCIPLINE ===
+Your job is to channel the site's voice, not to write "AI-style" prose.
 
-NEVER USE LinkedIn-brain slop:
-- "Here's the thing:" / "Let that sink in." / "Read that again."
-- "And that's okay." / "Full stop." / "Period."
-- "Let me be clear:" / "Make no mistake:"
-- "The truth is," / "The reality is,"
-- "Here's why that matters:" / "And here's the kicker:"
-- "Pro tip:" / "Hot take:" / "Plot twist:"
-- "worth sitting with" / "sit with that"
-- "This isn't just X, it's Y" / "This isn't just about..."
+MECHANICS:
+- Contractions always (don't, won't, it's) — stiff prose is a tell
+- Vary sentence length: 4 words. Then twenty-three that flow with subordinate clauses.
+- Vary paragraph length: some one sentence, some five
+- Specific numbers (47.3%) over vague ("about half")
+- Strong positions ("This works") not hedged mush ("This may potentially help")
+- Active voice default; passive only for emphasis or when agent is unknown
+- First person where voice permits ("I've seen...", "In my experience...")
 
-NEVER USE breathless discovery language:
-- "Discover how..." / "Discover the..." / "What you'll discover"
-- "uncover" / "reveal" / "secrets" / "little-known"
-- "what most people don't realize" / "the surprising truth"
+HEADLINE WORDS (ALLOWED IN H1/H2 ONLY, NEVER IN BODY):
+These power words are fine in headlines but become slop in body text:
+- "ultimate," "essential," "comprehensive," "complete guide"
+- "everything you need to know," "definitive"
+Use them for SEO in titles; never let them leak into prose.
 
-AVOID excessive parallel structure:
-- Don't make every list item grammatically identical
-- Don't use "improving X, enhancing Y, and boosting Z" patterns
-- Vary your sentence structures — not every sentence should be subject-verb-object
-
-WRITE LIKE A HUMAN:
-- Use contractions naturally (don't, won't, can't, it's, you'll)
-- Vary sentence length dramatically. Short punchy sentences. Then longer, flowing ones with multiple clauses that breathe.
-- Vary paragraph length too. Some one sentence. Some longer.
-- Use specific numbers (47.3%, not "about half")
-- Take strong positions ("This works" not "This may potentially help")
-- Include occasional sentence fragments. For emphasis.
-- Use natural transitions, not formal ones ("But here's the thing" vs "However,")
-- Write in active voice predominantly ("Studies show" vs "It has been shown")
-- Include first-person where appropriate ("I've seen..." or "In my experience...")
-- Add personality, wit, or strong opinions where the voice permits
-- Reference specific studies by author/year, not "research suggests"
+SELF-CHECK BEFORE OUTPUT:
+□ Does every abstraction have a concrete anchor within 2 sentences?
+□ Are there back-to-back paragraphs with the same rhetorical structure?
+□ Does the closing rely on synthesis + question + CTA? (If so, cut the CTA, end on substance.)
+□ Would a subject-matter expert find any phrase eye-rollingly generic?
 
 {citation_instructions}
 
@@ -423,7 +538,19 @@ Write the complete article in markdown. Include:
 - If citations required: inline [1], [2] references and a References section at the end
 - If product mention is appropriate: one natural, contextual mention
 
-Write the article now. Output ONLY the article markdown. No preamble, no "here's the article," no meta-commentary."""
+AFTER the article, include a self-audit JSON block for QA:
+
+```json
+{{
+  "word_count": <actual word count>,
+  "slop_violations": ["<any banned patterns you caught yourself using>"],
+  "voice_confidence": <1-5 how well you matched the voice>,
+  "citation_count": <number of inline citations used>,
+  "structure_notes": "<any concerns about structure or flow>"
+}}
+```
+
+Write the article now. Output the article markdown followed by the self-audit JSON block."""
 
         # User message: the plan
         title = metadata.get("title", "Untitled")
@@ -454,6 +581,22 @@ Write the complete article now. Markdown only."""
 
         article_body = response_text.strip()
 
+        # Extract self-audit JSON block (if present) and remove from article body
+        self_audit = {}
+        audit_match = re.search(r'```json\s*\n(\{[^}]+\})\s*\n```\s*$', article_body, re.DOTALL)
+        if audit_match:
+            try:
+                self_audit = json.loads(audit_match.group(1))
+                # Remove the audit block from the article
+                article_body = article_body[:audit_match.start()].strip()
+                logger.info(f"[write] Self-audit extracted: voice_confidence={self_audit.get('voice_confidence')}")
+            except json.JSONDecodeError:
+                logger.warning("[write] Failed to parse self-audit JSON")
+
+        # Add markdown fallbacks for visual blocks (stats_driven articles)
+        if input_metadata.get("structure_template") == "stats_driven_v1":
+            article_body = _add_visual_fallbacks(article_body)
+
         # Extract title from the article (first H1)
         title = input_metadata.get("title", "Untitled")
         h1_match = re.match(r"^#\s+(.+)", article_body, re.MULTILINE)
@@ -474,8 +617,33 @@ Write the complete article now. Markdown only."""
                 if product["name"].lower() in article_body.lower():
                     product_mentions.append(product["name"])
 
-        # Determine category (Site Empire generates featured images)
+        # Determine category
         category = input_metadata.get("category", "") or site_context.niche
+
+        # Get slug for image sourcing
+        slug = input_metadata.get("slug", self._slugify(title))
+
+        # P7: Source hero image from Unsplash
+        featured_image = ""
+        featured_image_alt = ""
+        featured_image_meta = {}
+        if IMAGE_PIPELINE_AVAILABLE and os.getenv("UNSPLASH_ACCESS_KEY"):
+            hero = self._source_hero_image(
+                title=title,
+                topic=input_metadata.get("topic", ""),
+                site_slug=input_metadata.get("site_id", ""),
+                article_slug=slug,
+            )
+            if hero:
+                featured_image = hero.url
+                featured_image_alt = hero.alt_text
+                featured_image_meta = {
+                    "width": hero.width,
+                    "height": hero.height,
+                    "attribution": hero.attribution,
+                    "photographer": hero.photographer,
+                    "source_id": hero.source_id,
+                }
 
         # Build metadata
         meta = article_metadata(
@@ -484,12 +652,12 @@ Write the complete article now. Markdown only."""
             site_id=input_metadata.get("site_id", ""),
             article_type=input_metadata.get("article_type", ""),
             title=title,
-            slug=input_metadata.get("slug", self._slugify(title)),
+            slug=slug,
             word_count=word_count,
             seo_title=input_metadata.get("seo_title", title),
             meta_description=input_metadata.get("meta_description", ""),
             tags=tags,
-            featured_image="",  # Site Empire generates based on category
+            featured_image=featured_image,
             category=category,
         )
 
@@ -500,7 +668,46 @@ Write the complete article now. Markdown only."""
         meta["internal_links"] = input_metadata.get("internal_links", [])
         meta["product_mentions"] = product_mentions
 
+        # P7: Add featured image metadata
+        if featured_image:
+            meta["featured_image_alt"] = featured_image_alt
+            meta["featured_image_meta"] = featured_image_meta
+
+        # Add self-audit for QA scoring
+        if self_audit:
+            meta["self_audit"] = self_audit
+
         return meta, article_body
+
+    def _source_hero_image(
+        self,
+        title: str,
+        topic: str,
+        site_slug: str,
+        article_slug: str,
+    ):
+        """
+        Source a hero image for the article using the P7 image pipeline.
+
+        Returns ArticleImage or None if sourcing fails.
+        """
+        if not IMAGE_PIPELINE_AVAILABLE:
+            return None
+
+        try:
+            pipeline = ImagePipeline()
+            image = pipeline.source_hero_image(
+                title=title,
+                topic=topic,
+                site_slug=site_slug,
+                article_slug=article_slug,
+            )
+            if image:
+                logger.info(f"[write] Hero image sourced: {image.url}")
+            return image
+        except Exception as e:
+            logger.warning(f"[write] Failed to source hero image: {e}")
+            return None
 
     # ── Validation ──────────────────────────────────────────
 
@@ -524,9 +731,12 @@ Write the complete article now. Markdown only."""
         if word_count < 100:
             return False, f"Article too short: {word_count} words"
 
-        # Allow 20% under target (we'd rather publish slightly short than reject good work)
-        if target and word_count < target * 0.6:
-            return False, f"Article significantly under target: {word_count}/{target} words ({word_count/target*100:.0f}%)"
+        # Stricter word count validation: 85% minimum, 130% maximum
+        if target:
+            if word_count < target * 0.85:
+                return False, f"Article under target: {word_count}/{target} words ({word_count/target*100:.0f}%, need 85%+)"
+            if word_count > target * 1.30:
+                return False, f"Article over target: {word_count}/{target} words ({word_count/target*100:.0f}%, max 130%)"
 
         # Check for H1 title
         if not re.search(r"^#\s+", body, re.MULTILINE):
@@ -568,28 +778,26 @@ Write the complete article now. Markdown only."""
         slug = re.sub(r"[-\s]+", "-", slug)
         return slug.strip("-")[:80]
 
-    def _extract_sources_from_body(self, body: str) -> list[dict]:
+    def _build_exemplar_block(self, site_context: SiteContext) -> str:
         """
-        Try to extract sources from the plan body.
-        Research sources travel through Planning as JSON in the body.
+        Build voice exemplar block for prompt injection.
+        Exemplars are 2-3 paragraphs of ideal prose that demonstrate the site's voice.
         """
-        # Look for JSON block with sources
-        json_match = re.search(r"```json\s*\n(.*?)\n```", body, re.DOTALL)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(1))
-                # Could be outline array or sources — check
-                if isinstance(data, list) and data and "sources_to_cite" in data[0]:
-                    # This is an outline, extract source references
-                    all_sources = []
-                    for section in data:
-                        for src in section.get("sources_to_cite", []):
-                            if src not in all_sources:
-                                all_sources.append(src)
-                    return [{"title": s} for s in all_sources]
-            except (json.JSONDecodeError, KeyError, IndexError):
-                pass
-        return []
+        exemplars = site_context.voice_exemplars
+        if not exemplars:
+            return ""
+
+        return f"""
+VOICE EXEMPLARS — MATCH THIS STYLE:
+The following paragraphs demonstrate exactly how this site should sound.
+Study the rhythm, word choice, and structure. Then write like this.
+
+---
+{exemplars.strip()}
+---
+
+Your article should be indistinguishable from the exemplars above.
+"""
 
 
 # ── CLI ─────────────────────────────────────────────────────

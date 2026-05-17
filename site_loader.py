@@ -104,6 +104,9 @@ class SiteContext:
     # Voice
     voice: dict = field(default_factory=dict)
 
+    # Voice Exemplars (2-3 paragraphs of ideal prose for this site)
+    voice_exemplars: str = ""
+
     # Article Types
     article_types: list = field(default_factory=list)
 
@@ -448,6 +451,7 @@ class SiteLoader:
             sub_niche=raw.get("sub_niche", ""),
             audience=raw.get("audience", {}),
             voice=raw.get("voice", {}),
+            voice_exemplars=raw.get("voice_exemplars", ""),
             article_types=raw.get("article_types", []),
             categories=raw.get("categories", []),
             seo=raw.get("seo", {}),
