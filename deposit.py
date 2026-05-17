@@ -400,7 +400,7 @@ class DepositEngine:
 
     def generate_report(self, summary: dict) -> str:
         """Generate a human-readable run report."""
-        lines = ["# Article Factory — Deposit Report"]
+        lines = ["# Article Factory - Deposit Report"]
         lines.append(f"\n**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
         lines.append(f"**Mode:** {summary.get('mode', 'api')}")
         lines.append(f"**Total scanned:** {summary['total_scanned']}")
@@ -433,10 +433,10 @@ class DepositEngine:
                     p4_status = " P4:PASS" if item["p4_passed"] else " P4:FAIL"
                 final = ""
                 if item.get("final_status"):
-                    final = f" → {item['final_status']}"
+                    final = f" -> {item['final_status']}"
                 lines.append(
-                    f"- **{item['title']}** ({item['site_id']}/{item['slug']}) — "
-                    f"{action}{p4_status}{final} — score {item['score']}, {item['word_count']}w"
+                    f"- **{item['title']}** ({item['site_id']}/{item['slug']}) - "
+                    f"{action}{p4_status}{final} - score {item['score']}, {item['word_count']}w"
                 )
 
         # P4 gate failures (articles that passed API but failed P4)
@@ -445,17 +445,17 @@ class DepositEngine:
             if item.get("p4_passed") is False
         ]
         if p4_failures:
-            lines.append("\n## ⚠️ P4 Gate Failures (pending review)")
+            lines.append("\n## [WARN] P4 Gate Failures (pending review)")
             for item in p4_failures:
                 lines.append(f"- **{item['title']}** ({item['site_id']}/{item['slug']})")
                 for failure in item.get("p4_failures", [])[:5]:
                     lines.append(f"  - [{failure['category']}.{failure['gate']}] {failure['reason']}")
 
         if summary.get("fallback_to_disk"):
-            lines.append("\n## ⚠️ Quarantined (API push failed)")
+            lines.append("\n## [WARN] Quarantined (API push failed)")
             for item in summary["fallback_to_disk"]:
                 lines.append(
-                    f"- **{item['title']}** ({item['site_id']}) → `{item.get('disk_path', '?')}`"
+                    f"- **{item['title']}** ({item['site_id']}) -> `{item.get('disk_path', '?')}`"
                 )
                 if item.get("api_error"):
                     lines.append(f"  - {item['api_error']}")
@@ -463,12 +463,12 @@ class DepositEngine:
         if summary["skipped_rewrite"]:
             lines.append("\n## Needs Rewrite")
             for item in summary["skipped_rewrite"]:
-                lines.append(f"- {item['title']} — score {item['score']}")
+                lines.append(f"- {item['title']} - score {item['score']}")
 
         if summary["skipped_kill"]:
             lines.append("\n## Killed")
             for item in summary["skipped_kill"]:
-                lines.append(f"- {item['title']} — score {item['score']}")
+                lines.append(f"- {item['title']} - score {item['score']}")
 
         if summary["errors"]:
             lines.append("\n## Errors")
@@ -521,13 +521,13 @@ def main():
     quarantined = len(summary.get("fallback_to_disk", []))
 
     if published > 0 and quarantined == 0:
-        print(f"\n✅ Published {published} articles")
+        print(f"\n[OK] Published {published} articles")
     elif published > 0 and quarantined > 0:
-        print(f"\n⚠️  Published {published}, {quarantined} quarantined (retry later)")
+        print(f"\n[WARN] Published {published}, {quarantined} quarantined (retry later)")
     elif quarantined > 0:
-        print(f"\n⚠️  All {quarantined} articles quarantined — check Site Empire connectivity")
+        print(f"\n[WARN] All {quarantined} articles quarantined - check Site Empire connectivity")
     else:
-        print(f"\n⚠️  Nothing to deposit")
+        print(f"\n[INFO] Nothing to deposit")
 
 
 if __name__ == "__main__":
