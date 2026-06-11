@@ -188,13 +188,15 @@ def wait_for_propagation(
     expected_value: str,
     timeout_seconds: int = 300,
     poll_interval: int = 15,
-    min_resolvers: int = 3,
+    min_resolvers: int = 2,
 ) -> None:
     """
-    Wait for a DNS record to propagate to all public resolvers.
+    Wait for a DNS record to propagate to public resolvers.
 
-    Polls three public DNS resolvers (Google, Cloudflare, Quad9) until
-    all of them return the expected value, or timeout is reached.
+    Polls three public DNS resolvers (Google, Cloudflare, Quad9) until at
+    least `min_resolvers` of them return the expected value, or timeout is
+    reached. Defaults to 2/3 so a single slow or disagreeing resolver does
+    not hard-fail onboarding.
 
     Args:
         domain: The domain to check.
@@ -202,6 +204,7 @@ def wait_for_propagation(
         expected_value: The value to wait for.
         timeout_seconds: Maximum time to wait (default 5 minutes).
         poll_interval: Seconds between checks (default 15).
+        min_resolvers: Resolvers that must agree before success (default 2 of 3).
 
     Raises:
         DNSPropagationError: If timeout is reached before all resolvers agree.
