@@ -41,6 +41,7 @@ import logging
 from typing import Optional
 
 from base_module import BaseModule
+from models_config import get_model
 from site_loader import SiteContext
 from artifacts import qa_metadata, new_article_id
 
@@ -445,7 +446,7 @@ def build_site_checks(site_context: SiteContext, article_type: dict) -> str:
 class QAModule(BaseModule):
 
     module_name = "qa"
-    model = "claude-sonnet-4-7"  # Better instruction-following for structured JSON
+    model = get_model("qa")  # Sonnet — better instruction-following for structured JSON
     input_module = "write"
     max_retries = 1  # QA itself doesn't retry
     default_max_tokens = 2048

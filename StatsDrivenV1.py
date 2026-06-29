@@ -44,10 +44,12 @@ import json
 import yaml
 from datetime import datetime, timezone
 
+from models_config import get_model
+
 
 # ── Model configuration ────────────────────────────────────
-MODEL = "claude-haiku-4-5-20251001"
-MAX_TOKENS = 4096
+MODEL = get_model("stats_driven")
+MAX_TOKENS = 8192
 TEMPERATURE = 0.4  # low — this is structural, not creative
 
 

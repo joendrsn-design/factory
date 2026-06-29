@@ -45,6 +45,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from site_loader import SiteLoader, SiteContext
+from models_config import get_model
 from artifacts import (
     topic_metadata, new_run_id, new_article_id,
     save_artifact, load_artifacts_from_dir,
@@ -125,8 +126,13 @@ class PublishingHistory:
         coverage = {}
 
         for cluster in keyword_clusters:
-            cluster_name = cluster.get("name", cluster.get("label", ""))
-            cluster_keywords = [k.lower() for k in cluster.get("keywords", [])]
+            # Clusters may be dicts ({name/label, keywords}) or bare keyword lists.
+            if isinstance(cluster, dict):
+                cluster_name = cluster.get("name", cluster.get("label", ""))
+                cluster_keywords = [k.lower() for k in cluster.get("keywords", [])]
+            else:
+                cluster_keywords = [str(k).lower() for k in cluster]
+                cluster_name = cluster_keywords[0] if cluster_keywords else ""
             count = 0
             for topic in existing:
                 if any(kw in topic.lower() for kw in cluster_keywords):
@@ -165,7 +171,7 @@ class PublishingHistory:
 
 class TopicGenerator:
 
-    model = "claude-haiku-4-5-20251001"
+    model = get_model("topic_generator")
     default_max_tokens = 2048
 
     def __init__(self, config_dir: str = "config/sites", published_dir: str = ""):

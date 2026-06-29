@@ -43,6 +43,14 @@ Usage:
 
 import os
 import sys
+
+# Force UTF-8 on stdout/stderr so the run report (arrows/emoji) never crashes
+# with UnicodeEncodeError under the Windows cp1252 console.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
 import json
 import logging
 import argparse

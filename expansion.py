@@ -22,6 +22,7 @@ import logging
 from typing import Optional
 
 from base_module import BaseModule
+from models_config import get_model
 from site_loader import SiteContext
 from artifacts import base_metadata, new_article_id, save_artifact
 
@@ -40,7 +41,7 @@ class ExpansionModule(BaseModule):
     """
 
     module_name = "expansion"
-    model = "claude-haiku-4-5-20251001"  # Cheap!
+    model = get_model("expansion")  # Haiku — cheap
     input_module = "research"
     max_retries = 2
     default_max_tokens = 4096

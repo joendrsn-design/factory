@@ -38,3 +38,7 @@ env/
 # Temp files
 *.txt
 *.tmp
+
+# Service-account credentials and transient pipeline artifacts
+secrets/
+pipeline/angles/

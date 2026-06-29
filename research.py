@@ -68,10 +68,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from base_module import BaseModule
+from models_config import get_model
 from site_loader import SiteContext
 from artifacts import (
     research_metadata, new_article_id,
     save_artifact, load_artifacts_from_dir,
+    extract_json, strip_json_blocks,
 )
 
 logger = logging.getLogger("article_factory.research")
@@ -332,9 +334,9 @@ class ResearchVault:
 class ResearchModule(BaseModule):
 
     module_name = "research"
-    model = "claude-sonnet-4-5-20250929"
+    model = get_model("research")
     input_module = "topic_generator"
-    max_retries = 2
+    max_retries = 4  # synthesis output varies; give flaky rolls more attempts
     default_max_tokens = 4096
 
     def __init__(self, config_dir: str = "config/sites", vault_dir: str = "pipeline/research_vault"):
@@ -909,7 +911,7 @@ DEFAULT CAUTION:
 
 === PART 2: RESEARCH BRIEF ===
 
-A detailed research brief in markdown. This is the meat — the actual research content that the Planning and Writing modules will use.
+A detailed research brief in markdown — AT LEAST 300 words (more for deep/exhaustive depth). This is the meat: the actual research content the Planning and Writing modules consume, so it must be substantive prose, not a one-line summary. Do not leave it short by pushing everything into the JSON.
 
 IMPORTANT: The research brief will be consumed by Planning and Write modules. It should be
 written as research notes, not as draft article prose. Avoid the rhetorical patterns of
@@ -1069,44 +1071,19 @@ The brief should be detailed enough that a writer can produce a full article wit
         return meta, brief_body
 
     def _extract_json(self, text: str) -> dict:
-        """Extract the JSON metadata block from the response."""
-        import re
-
-        # Look for ```json ... ``` block
-        pattern = r"```json\s*\n(.*?)\n```"
-        match = re.search(pattern, text, re.DOTALL)
-
-        if match:
-            try:
-                return json.loads(match.group(1))
-            except json.JSONDecodeError:
-                logger.warning("[research] Failed to parse JSON block from response")
-
-        # Fallback: try to find any JSON object
-        brace_start = text.find("{")
-        if brace_start >= 0:
-            depth = 0
-            for i in range(brace_start, len(text)):
-                if text[i] == "{":
-                    depth += 1
-                elif text[i] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        try:
-                            return json.loads(text[brace_start:i+1])
-                        except json.JSONDecodeError:
-                            break
-
+        """Extract the JSON metadata block (see artifacts.extract_json)."""
+        obj = extract_json(text)
+        if obj is not None:
+            return obj
         logger.warning("[research] No valid JSON found in response, using empty metadata")
         return {"key_findings": [], "sources": [], "statistics": [], "source_count": 0}
 
     def _extract_brief(self, text: str) -> str:
-        """Extract the research brief (everything after the JSON block)."""
+        """Extract the research brief (the prose outside the JSON metadata block)."""
         import re
 
-        # Remove the JSON block
-        pattern = r"```json\s*\n.*?\n```"
-        cleaned = re.sub(pattern, "", text, flags=re.DOTALL).strip()
+        # Strip fenced AND leading unfenced JSON metadata (see artifacts.strip_json_blocks).
+        cleaned = strip_json_blocks(text)
 
         # Remove any leading "PART 2:" or similar headers
         cleaned = re.sub(r"^(PART\s*2\s*:?\s*)", "", cleaned, flags=re.IGNORECASE).strip()

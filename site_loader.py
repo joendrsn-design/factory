@@ -131,6 +131,11 @@ class SiteContext:
     # Raw config (full YAML dict, for anything not explicitly mapped)
     _raw: dict = field(default_factory=dict, repr=False)
 
+    @property
+    def raw_config(self) -> dict:
+        """Full raw YAML config dict (alias for _raw)."""
+        return self._raw
+
     def get_article_type(self, type_id: str) -> Optional[dict]:
         """Get a specific article type config by type_id."""
         for at in self.article_types:

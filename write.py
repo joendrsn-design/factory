@@ -43,6 +43,7 @@ import logging
 from typing import Optional
 
 from base_module import BaseModule
+from models_config import get_model
 from site_loader import SiteContext
 from artifacts import (
     article_metadata, new_article_id,
@@ -372,7 +373,7 @@ RULES:
 class WriteModule(BaseModule):
 
     module_name = "write"
-    model = "claude-opus-4-7"  # Default, can be overridden per article type
+    model = get_model("write")  # Opus — overridable per article type via model_override
     input_module = "planning"
     max_retries = 2
     default_max_tokens = 8192
