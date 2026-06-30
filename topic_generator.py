@@ -101,6 +101,11 @@ class PublishingHistory:
             for meta, _body, _f in load_artifacts_from_dir(directory):
                 if site_id and meta.get("site_id") != site_id:
                     continue
+                # A blocked artifact (verify gate / external-assembly failure) is NOT
+                # "done" — leave its topic_id retry-eligible so a transient block (network
+                # / flaky assembly) doesn't silently drop the topic from all future runs.
+                if meta.get("status") == "blocked":
+                    continue
                 tid = meta.get("topic_id")
                 if tid:
                     ids.add(tid)

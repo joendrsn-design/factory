@@ -229,6 +229,32 @@ def test_blocked_topic_not_written():
         assert "non-complete" in str(e), str(e)
 
 
+def test_blocked_topic_stays_retry_eligible():
+    # A blocked artifact must NOT count as "done" in dedup, or a transient block
+    # (network/flaky assembly) silently drops the topic from every future run.
+    import tempfile
+    from artifacts import save_artifact, research_metadata
+    from topic_generator import PublishingHistory
+    d = tempfile.mkdtemp()
+    done = research_metadata(run_id="r", article_id="a1", site_id="magpie-diagnostics",
+                             article_type="P4_recent_developments", topic="t", research_depth="deep",
+                             source_count=1, key_findings=["x"], sources=[{"source_id": "s"}],
+                             from_cache=False, statistics=[])
+    done["topic_id"] = "tid-complete"
+    blocked = research_metadata(run_id="r", article_id="a2", site_id="magpie-diagnostics",
+                                article_type="P4_recent_developments", topic="t2", research_depth="deep",
+                                source_count=0, key_findings=[], sources=[], from_cache=False, statistics=[])
+    blocked["topic_id"] = "tid-blocked"
+    blocked["status"] = "blocked"
+    save_artifact(done, "body one " * 40, d)
+    save_artifact(blocked, "body two " * 40, d)
+
+    hist = PublishingHistory(pipeline_dirs=[d])
+    ids = hist.get_existing_topic_ids("magpie-diagnostics")
+    assert "tid-complete" in ids, "completed topic should be deduped"
+    assert "tid-blocked" not in ids, "blocked topic must stay retry-eligible (not deduped)"
+
+
 def test_non_magpie_unchanged():
     # is_magpie / carry_magpie are inert for non-Magpie artifacts.
     assert is_magpie({}) is False
