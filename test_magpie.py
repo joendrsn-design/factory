@@ -304,6 +304,18 @@ def test_verify_fails_closed_without_search_provider():
     assert "no search provider" in rmeta.get("block_reason", "").lower()
 
 
+def test_overview_flags_not_blocks():
+    # A P3 biomarker OVERVIEW (pillar) must FLAG unconfirmable therapy-linkage and still
+    # write (cited synthesis + human review) — unlike the spoke, which blocks.
+    meta, body = _p3_breast_topic()
+    r = ResearchModule(config_dir=CONFIG)
+    r.search_provider = NoSearchProvider()
+    rmeta, rbody = r.run_single(meta, body, "")
+    assert rmeta.get("status") == "complete", "P3 overview must flag-not-block, not block"
+    assert "FLAGGED" in rbody or any("FLAGGED" in str(n) for n in rmeta.get("magpie", {}).get("notes", [])) \
+        or "flag" in rbody.lower(), "overview should surface a flag note for unverified linkage"
+
+
 def test_external_sources_come_from_developments():
     # P4/C/D meta[sources] must be built from confirmed external developments (their
     # references dict is empty), so QA isn't handed an empty source list.

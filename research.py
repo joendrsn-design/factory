@@ -1536,26 +1536,28 @@ The brief should be detailed enough that a writer can produce a full article wit
     def _magpie_verify(self, blob: dict, site_context) -> tuple:
         """Return (ok, blocked_claims, verify_sources, notes).
 
-        Fails CLOSED: with no real search provider a therapy-linkage claim cannot be
-        confirmed, so it is blocked (not skipped). With a provider, an unconfirmable
-        therapy-linkage claim blocks. Only therapy-linkage claims block; classification-
-        currency 'changed' is a non-blocking flag.
+        Per-biomarker SPOKES (Type B) fail CLOSED on therapy-linkage — each is THE
+        authoritative page on its marker, so an unconfirmable linkage blocks. Synthesis
+        OVERVIEWS (pillars, e.g. P3) instead FLAG the unconfirmed linkage in the notes and
+        still write (cited educational summary + mandatory human review). Classification-
+        currency is always a non-blocking flag.
         """
         claims = self._magpie_claims(blob)
         if not claims:
             return True, [], [], []
+        # Overviews flag-not-block; spokes (no pillar_code) block.
+        flag_only = bool(blob.get("pillar_code"))
         if isinstance(self.search_provider, NoSearchProvider):
-            # FAIL CLOSED: with no search provider we cannot confirm a therapy-linkage
-            # claim, so block it rather than writing a possibly-stale standard-of-care
-            # claim from the snapshot (the human-review gate is a backstop, not a license
-            # to skip). Currency-only claims (P1/P2 classification) don't block — they
-            # would only ever flag — so those still pass through.
             tl = [c for c in claims if c["kind"] == "therapy_linkage"]
-            if tl:
-                logger.warning("[research] Magpie verify FAIL-CLOSED: no search provider; blocking therapy-linkage claims")
+            if tl and not flag_only:
+                logger.warning("[research] Magpie verify FAIL-CLOSED: no search provider; blocking spoke therapy-linkage")
                 return False, [f"{c['id']} (unverifiable: no search provider)" for c in tl], [], \
                     ["verify could not run — no search provider configured"]
-            return True, [], [], ["verify skipped (currency-only) — no search provider configured"]
+            notes = ["verify skipped — no search provider configured"]
+            if tl:  # overview: flag the unverified linkages, write anyway
+                notes.append("FLAGGED — therapy-linkage unverified (no search provider): "
+                             + ", ".join(c["id"] for c in tl))
+            return True, [], [], notes
 
         evidence, verify_sources = [], []
         for c in claims:
@@ -1585,7 +1587,10 @@ The brief should be detailed enough that a writer can produce a full article wit
             if v.get("note"):
                 notes.append(f"{cid}: {v['note']}")
             if kind_by_id.get(cid) == "therapy_linkage" and status in ("unconfirmable", "unconfirmed", "contradicted"):
-                blocked.append(f"{cid} ({status})")
+                if flag_only:
+                    notes.append(f"FLAGGED — unconfirmed therapy-linkage: {cid} ({status})")
+                else:
+                    blocked.append(f"{cid} ({status})")
         return (len(blocked) == 0), blocked, verify_sources, notes
 
     def _magpie_verify_llm(self, evidence: list) -> list:
