@@ -687,11 +687,25 @@ Write the complete article now. Markdown only."""
         # substrate references (the plan artifact carries no sources array).
         carry_magpie(input_metadata, meta)
         if is_magpie(input_metadata):
-            _refs = references_for_write(input_metadata.get("magpie", {}).get("references", {}))
-            meta["sources"] = [
-                {"source_id": k, "title": r.get("title", ""), "url": r.get("doi_or_id", ""), "year": r.get("year", "")}
-                for k, r in _refs.items()
-            ]
+            blob = input_metadata.get("magpie", {})
+            ext = blob.get("external_developments") or []
+            if ext:
+                # P4/C/D: citations come from the confirmed external developments (their
+                # references dict is empty by design) — without this QA sees zero sources
+                # and fails every [n], blocking the whole external Pulse line.
+                meta["sources"] = []
+                for d in ext:
+                    c = d.get("citation", {}) or {}
+                    meta["sources"].append({
+                        "source_id": c.get("id", "") or (c.get("title", "")[:40]),
+                        "title": c.get("title", ""), "url": c.get("id", ""), "year": c.get("year", ""),
+                    })
+            else:
+                _refs = references_for_write(blob.get("references", {}))
+                meta["sources"] = [
+                    {"source_id": k, "title": r.get("title", ""), "url": r.get("doi_or_id", ""), "year": r.get("year", "")}
+                    for k, r in _refs.items()
+                ]
 
         return meta, article_body
 

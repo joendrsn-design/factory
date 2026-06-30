@@ -75,11 +75,13 @@ def _strip_provenance(record: dict) -> dict:
 
 
 def _ref_needs_verify(ref_keys: list, references_index: dict) -> bool:
-    """A record needs verification if any of its refs is flagged for verification."""
+    """A record needs verification if any of its refs carries the structured `verify`
+    directive (a truthy value on the reference's `verify` KEY). The directive's text is
+    guidance for the verifier (e.g. 'Confirm subtype list and any corrigenda.') and does
+    not itself contain the word 'verify', so read the key, not the serialized values."""
     for k in ref_keys:
         entry = references_index.get(k, {})
-        blob = " ".join(str(v) for v in entry.values()).lower()
-        if "verify" in blob or "unverified" in blob:
+        if isinstance(entry, dict) and entry.get("verify"):
             return True
     return False
 
@@ -103,13 +105,16 @@ class SubstrateReader:
 
     def classification_topics(self) -> Iterator[CandidateTopic]:
         for rec in self.classification.get("classification_records", []):
-            entity = rec.get("entity", rec.get("record_id", "unknown"))
+            rid = rec.get("id") or rec.get("record_id")
+            if not rid:
+                continue  # skip a malformed record rather than KeyError-aborting the run
+            entity = rec.get("entity", rid)
             refs = rec.get("references", [])
             yield CandidateTopic(
-                topic_id=_stable_id(self.cancer, "A", rec["id"]),
+                topic_id=_stable_id(self.cancer, "A", rid),
                 cancer=self.cancer,
                 article_type="A_classification",
-                record_id=rec["id"],
+                record_id=rid,
                 title_hint=f"{entity}: classification and diagnostic recognition",
                 source_record=_strip_provenance(rec),
                 needs_verify=_ref_needs_verify(refs, self.references),
@@ -118,13 +123,16 @@ class SubstrateReader:
 
     def biomarker_topics(self) -> Iterator[CandidateTopic]:
         for rec in self.biomarkers.get("biomarker_records", []):
-            marker = rec.get("biomarker", rec.get("record_id", "unknown"))
+            rid = rec.get("id") or rec.get("record_id")
+            if not rid:
+                continue  # skip a malformed record rather than KeyError-aborting the run
+            marker = rec.get("biomarker", rid)
             refs = rec.get("references", [])
             yield CandidateTopic(
-                topic_id=_stable_id(self.cancer, "B", rec["id"]),
+                topic_id=_stable_id(self.cancer, "B", rid),
                 cancer=self.cancer,
                 article_type="B_biomarker",
-                record_id=rec["id"],
+                record_id=rid,
                 title_hint=f"{marker}: what it tests and what it determines",
                 source_record=_strip_provenance(rec),
                 # biomarker articles ALWAYS verify (therapy linkage is the
@@ -144,7 +152,7 @@ class SubstrateReader:
             if any(m in blob for m in LIQUID_MARKERS):
                 yield {
                     "cancer": self.cancer,
-                    "record_id": rec["id"],
+                    "record_id": rec.get("id") or rec.get("record_id"),
                     "biomarker": rec.get("biomarker"),
                     "source_record": _strip_provenance(rec),
                 }
@@ -188,10 +196,13 @@ def build_link_mesh(topics: list[CandidateTopic]) -> dict[str, list[str]]:
         subs = [t for t in group if t.article_type == "A_classification"]
         bios = [t for t in group if t.article_type == "B_biomarker"]
         for sub in subs:
-            sig = " ".join(
-                sub.source_record.get("ihc_signature", [])
-                + sub.source_record.get("molecular_signature", [])
-            ).lower()
+            # Guard against a record whose signature field is null or a string (not a
+            # list) — otherwise one bad record raises TypeError and collapses the whole mesh.
+            ihc = sub.source_record.get("ihc_signature")
+            mol = sub.source_record.get("molecular_signature")
+            ihc = ihc if isinstance(ihc, list) else []
+            mol = mol if isinstance(mol, list) else []
+            sig = " ".join(ihc + mol).lower()
             for bio in bios:
                 marker = (bio.source_record.get("biomarker") or "").lower()
                 # match on the marker's leading token (e.g. "her2", "bcl2", "egfr")

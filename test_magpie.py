@@ -92,6 +92,7 @@ def test_ab_spoke_chain():
         assert meta["magpie"]["section"] == "breast", f"{at} section routing wrong"
         r = ResearchModule(config_dir=CONFIG)
         r.search_provider = NoSearchProvider()
+        r._magpie_verify = lambda blob, sc: (True, [], [], [])  # not testing the verify gate here
         rmeta, rbody = r.run_single(meta, body, "")
         assert rmeta.get("status") == "complete", f"{at} research not complete"
         pm, pb = PlanningModule(config_dir=CONFIG).run_single(rmeta, rbody, "")
@@ -149,6 +150,7 @@ def test_no_provenance_reaches_write():
 
     r = ResearchModule(config_dir=CONFIG)
     r.search_provider = NoSearchProvider()
+    r._magpie_verify = lambda blob, sc: (True, [], [], [])  # not testing the verify gate here
     rmeta, rbody = r.run_single(meta, body, "")
     assert "_provenance" not in json.dumps(rmeta), "_provenance in research metadata"
     assert "_provenance" not in rbody, "_provenance in research brief"
@@ -253,6 +255,69 @@ def test_blocked_topic_stays_retry_eligible():
     ids = hist.get_existing_topic_ids("magpie-diagnostics")
     assert "tid-complete" in ids, "completed topic should be deduped"
     assert "tid-blocked" not in ids, "blocked topic must stay retry-eligible (not deduped)"
+
+
+def test_firewall_gates_on_is_magpie_not_config_flag():
+    # The PUBLISH->PUBLISH_PENDING_REVIEW conversion must key on is_magpie(metadata),
+    # not the separate magpie.review_required config flag (which can be mis-set).
+    from qa import QAModule
+    qm = QAModule(config_dir=CONFIG)
+    sc = qm.loader.load("magpie-diagnostics")
+    meta, _ = _p3_breast_topic()
+    base = {"run_id": "t", "article_id": "a", "site_id": "magpie-diagnostics",
+            "article_type": "P3_biomarker_overview", "title": "T", "slug": "s", "word_count": 1100}
+    body = "# T\n\nThe evidence suggests testing guides therapy class [1].\n\n## References\n1. ref\n"
+    qa_json = json.dumps({"verdict": "PUBLISH", "composite_score": 9.0, "scores": {}, "feedback": "", "rewrite_instructions": ""})
+
+    mag = dict(base); mag["magpie"] = meta["magpie"]
+    out_mag, _ = qm.parse_response(qa_json, mag, body, sc)
+    assert out_mag["verdict"] == "PUBLISH_PENDING_REVIEW", "Magpie PUBLISH must be gated regardless of review_required"
+
+    # A non-Magpie article on the same site must NOT be converted, and must NOT have
+    # category force-threaded (that would re-taxonomize non-Magpie content).
+    non = dict(base)
+    out_non, _ = qm.parse_response(qa_json, non, body, sc)
+    assert out_non["verdict"] == "PUBLISH", "non-Magpie verdict must stay PUBLISH"
+    assert "category" not in out_non or out_non.get("category") == "", "non-Magpie category must not be force-threaded"
+
+
+def test_ref_needs_verify_reads_structured_key():
+    # The WHO5 reference carries a structured `verify` directive whose text contains no
+    # literal 'verify' — the flag must still be honored (read the key, not the values).
+    from magpie_substrate import _ref_needs_verify
+    idx = {"who5_breast": {"title": "Breast Tumours", "verify": "Confirm subtype list and any corrigenda."},
+           "plain": {"title": "Some paper", "year": "2020"}}
+    assert _ref_needs_verify(["who5_breast"], idx) is True, "structured verify key ignored"
+    assert _ref_needs_verify(["plain"], idx) is False
+    assert _ref_needs_verify(["missing"], idx) is False
+
+
+def test_verify_fails_closed_without_search_provider():
+    # No search provider => a therapy-linkage (B) topic must BLOCK, not silently pass.
+    meta, body = next(mb for mb in TopicGenerator(config_dir=CONFIG)
+                      .generate_for_site("magpie-diagnostics", count=999, run_id="t")
+                      if mb[0]["article_type"] == "B_biomarker" and mb[0]["magpie"].get("cancer") == "breast")
+    r = ResearchModule(config_dir=CONFIG)
+    r.search_provider = NoSearchProvider()
+    rmeta, _ = r.run_single(meta, body, "")
+    assert rmeta.get("status") == "blocked", "B therapy-linkage must fail closed with no search provider"
+    assert "no search provider" in rmeta.get("block_reason", "").lower()
+
+
+def test_external_sources_come_from_developments():
+    # P4/C/D meta[sources] must be built from confirmed external developments (their
+    # references dict is empty), so QA isn't handed an empty source list.
+    from write import WriteModule
+    w = WriteModule(config_dir=CONFIG)
+    sc = w.loader.load("magpie-diagnostics")
+    plan_meta = {"run_id": "t", "article_id": "a", "site_id": "magpie-diagnostics",
+                 "article_type": "P4_recent_developments", "title": "T", "slug": "s",
+                 "magpie": {"topic_id": "x", "article_type": "P4_recent_developments", "references": {},
+                            "external_developments": [
+                                {"headline": "h", "citation": {"title": "Paper A", "year": "2025", "id": "10.x"}}]}}
+    art = "# T\n\nBody [1].\n\n## References\n1. Paper A\n"
+    meta, _ = w.parse_response(art, plan_meta, "", sc)
+    assert len(meta["sources"]) == 1 and meta["sources"][0]["title"] == "Paper A", meta["sources"]
 
 
 def test_non_magpie_unchanged():

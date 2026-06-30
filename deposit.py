@@ -154,8 +154,9 @@ def publish_to_site_empire(payload: dict, timeout: int = 30) -> dict:
 
 # ── Disk Write (Primary or Fallback) ────────────────────────
 
-def build_disk_frontmatter(payload: dict, site_context: SiteContext) -> dict:
-    """Build frontmatter for disk write — mirrors what Site Empire stores."""
+def build_disk_frontmatter(payload: dict, site_context: SiteContext, held: bool = False) -> dict:
+    """Build frontmatter for disk write — mirrors what Site Empire stores.
+    held=True marks a pending-review article so a disk write can never go live."""
     fm = {}
     template = site_context.output.get("frontmatter_template", {}) or {}
     if template:
@@ -179,13 +180,19 @@ def build_disk_frontmatter(payload: dict, site_context: SiteContext) -> dict:
         "_factory": payload["_factory"],
     })
 
+    if held:
+        # Clinical/legal firewall on the disk path: never write a held article as live.
+        fm["draft"] = True
+        fm["status"] = "pending_review"
+
     return fm
 
 
-def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = False) -> Path:
+def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = False, held: bool = False) -> Path:
     """
     Write the article to disk.
     fallback=True writes to quarantine for retry; fallback=False writes to CONTENT_ROOT.
+    held=True marks the frontmatter pending_review/draft so it is never served live.
     """
     if fallback:
         content_root = os.environ.get("DEPOSIT_FAILED_DIR", "pipeline/failed_publishes")
@@ -200,7 +207,7 @@ def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = Fal
     output_path = Path(content_root) / site_id / "articles" / filename
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    fm = build_disk_frontmatter(payload, site_context)
+    fm = build_disk_frontmatter(payload, site_context, held=held)
     fm_str = yaml.dump(fm, default_flow_style=False, sort_keys=False, allow_unicode=True)
     content = f"---\n{fm_str}---\n\n{payload['body']}"
 
@@ -448,7 +455,7 @@ class DepositEngine:
 
             if should_write_disk:
                 try:
-                    disk_path = write_to_disk(payload, site_context, fallback=is_fallback)
+                    disk_path = write_to_disk(payload, site_context, fallback=is_fallback, held=pending_review)
                     record["disk_path"] = str(disk_path)
                     if is_fallback:
                         record["fallback"] = True
@@ -459,10 +466,12 @@ class DepositEngine:
                     record["disk_error"] = str(e)
                     logger.error(f"[deposit] ❌ Disk write failed: {e}")
 
-            # Record successful Magpie deposits in the link ledger so later articles
-            # can resolve internal links to them.
+            # Record only LIVE (published) Magpie deposits in the link ledger. A held
+            # (pending_review) article isn't served yet, so linking to it would emit a
+            # dead /slug link. (Cross-linking held articles needs a published-state source,
+            # e.g. a Supabase query post-approval — not the deposit-time local ledger.)
             success = api_succeeded or (self.mode == "disk" and "disk_path" in record)
-            if success and is_magpie(metadata):
+            if success and is_magpie(metadata) and not pending_review:
                 tid = (metadata.get("magpie") or {}).get("topic_id") or metadata.get("topic_id")
                 if tid:
                     self._load_ledger()[tid] = {"slug": payload["slug"], "title": payload["title"]}

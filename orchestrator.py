@@ -577,9 +577,11 @@ class RealtimePipeline:
 
                     verdict = qa_meta.get("verdict", "KILL")
 
-                    if verdict == "PUBLISH":
+                    # PUBLISH_PENDING_REVIEW is the Magpie review-gated pass — it is a
+                    # SUCCESS (Deposit holds it), not a rewrite/kill. Treat it like PUBLISH.
+                    if verdict in ("PUBLISH", "PUBLISH_PENDING_REVIEW"):
                         summary["qa_passed"] += 1
-                        logger.info(f"[orchestrator] ✅ PUBLISH (score {qa_meta.get('score', '?')})")
+                        logger.info(f"[orchestrator] ✅ {verdict} (score {qa_meta.get('score', '?')})")
                         logger.info(f"[orchestrator] Feedback: {qa_meta.get('feedback', '')[:300]}")
                         break
 

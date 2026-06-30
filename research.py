@@ -1536,17 +1536,26 @@ The brief should be detailed enough that a writer can produce a full article wit
     def _magpie_verify(self, blob: dict, site_context) -> tuple:
         """Return (ok, blocked_claims, verify_sources, notes).
 
-        Degrades safely: with no real search provider configured the gate is skipped
-        (the mandatory human review gate is the backstop) rather than blocking the whole
-        line offline. With a provider, an unconfirmable therapy-linkage claim blocks.
-        Only therapy-linkage claims block; classification-currency 'changed' is a flag.
+        Fails CLOSED: with no real search provider a therapy-linkage claim cannot be
+        confirmed, so it is blocked (not skipped). With a provider, an unconfirmable
+        therapy-linkage claim blocks. Only therapy-linkage claims block; classification-
+        currency 'changed' is a non-blocking flag.
         """
         claims = self._magpie_claims(blob)
         if not claims:
             return True, [], [], []
         if isinstance(self.search_provider, NoSearchProvider):
-            logger.warning("[research] Magpie verify skipped: no search provider (human review is the backstop)")
-            return True, [], [], ["verify skipped — no search provider configured"]
+            # FAIL CLOSED: with no search provider we cannot confirm a therapy-linkage
+            # claim, so block it rather than writing a possibly-stale standard-of-care
+            # claim from the snapshot (the human-review gate is a backstop, not a license
+            # to skip). Currency-only claims (P1/P2 classification) don't block — they
+            # would only ever flag — so those still pass through.
+            tl = [c for c in claims if c["kind"] == "therapy_linkage"]
+            if tl:
+                logger.warning("[research] Magpie verify FAIL-CLOSED: no search provider; blocking therapy-linkage claims")
+                return False, [f"{c['id']} (unverifiable: no search provider)" for c in tl], [], \
+                    ["verify could not run — no search provider configured"]
+            return True, [], [], ["verify skipped (currency-only) — no search provider configured"]
 
         evidence, verify_sources = [], []
         for c in claims:

@@ -726,7 +726,7 @@ Score and issue your verdict. JSON only."""
         # Convert to PUBLISH_PENDING_REVIEW so Deposit holds it for pathologist sign-off.
         # The universal QA checks above (hallucinated-source KILL, citation enforcement,
         # threshold logic) stay fully active.
-        if verdict == "PUBLISH" and site_context.raw_config.get("magpie", {}).get("review_required"):
+        if verdict == "PUBLISH" and is_magpie(input_metadata):
             verdict = "PUBLISH_PENDING_REVIEW"
             logger.info(
                 f"[qa] Magpie review gate: PUBLISH -> PUBLISH_PENDING_REVIEW for "
@@ -757,7 +757,10 @@ Score and issue your verdict. JSON only."""
         meta["meta_description"] = input_metadata.get("meta_description", "")
         meta["tags"] = input_metadata.get("tags", [])
         meta["sources"] = input_metadata.get("sources", [])
-        meta["category"] = input_metadata.get("category", "")
+        # Only thread category for Magpie (section routing); non-Magpie keeps its prior
+        # behavior of falling back to the site niche at Deposit (don't re-taxonomize it).
+        if is_magpie(input_metadata):
+            meta["category"] = input_metadata.get("category", "")
         carry_magpie(input_metadata, meta)  # thread substrate identity to Deposit
 
         # Store slop metrics for trend analysis across runs (Change 8)
