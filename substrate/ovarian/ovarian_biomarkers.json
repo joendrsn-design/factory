@@ -1,0 +1,98 @@
+{
+  "dataset": "ovarian_biomarkers",
+  "scope": "Ovarian carcinoma predictive/prognostic/diagnostic biomarkers. Internal substrate only.",
+  "biomarker_records": [
+    {
+      "id": "OVA-BIO-0001",
+      "biomarker": "BRCA1/2 (germline and somatic)",
+      "purpose": "predictive",
+      "assay": ["germline sequencing", "somatic tumor NGS"],
+      "specimen": "blood (germline) + FFPE (somatic)",
+      "scoring": "Pathogenic BRCA1/2 alteration present vs absent.",
+      "result_states": ["BRCA-mutant", "BRCA wild-type"],
+      "therapy_linkage": "Gates PARP-inhibitor therapy (maintenance and treatment) in high-grade serous/epithelial ovarian cancer; also informs risk-reducing surgery and cascade testing.",
+      "companion_dx_basis": "PARP-inhibitor trials / FDA companion dx",
+      "references": ["ovarian_parp_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "OVA-BIO-0002",
+      "biomarker": "Homologous recombination deficiency (HRD)",
+      "purpose": "predictive",
+      "assay": ["genomic-scar/signature assays (LOH, telomeric imbalance, large-scale transitions) + BRCA status"],
+      "specimen": "FFPE",
+      "scoring": "HRD-positive vs HRD-negative by validated composite score (beyond BRCA alone).",
+      "result_states": ["HRD positive", "HRD negative"],
+      "therapy_linkage": "HRD-positive status (BRCA-mutant or HR-deficient by genomic scar) broadens PARP-inhibitor benefit beyond BRCA mutation alone, especially with bevacizumab maintenance.",
+      "companion_dx_basis": "PARP maintenance trials with HRD companion dx",
+      "references": ["ovarian_hrd_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "OVA-BIO-0003",
+      "biomarker": "WT1",
+      "purpose": "prognostic",
+      "assay": ["IHC"],
+      "specimen": "FFPE",
+      "scoring": "Nuclear expression present vs absent.",
+      "result_states": ["WT1+", "WT1-"],
+      "therapy_linkage": "Diagnostic/histotyping: WT1 positivity supports serous lineage (HGSC/LGSC); negativity points to clear cell, endometrioid, or mucinous. Histotype then drives the therapeutic pathway.",
+      "companion_dx_basis": "Diagnostic IHC standard",
+      "references": ["who5_femalegenital"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "OVA-BIO-0004",
+      "biomarker": "p53 (aberrant pattern)",
+      "purpose": "both",
+      "assay": ["IHC"],
+      "specimen": "FFPE",
+      "scoring": "Aberrant patterns (diffuse overexpression OR complete null) = mutant-pattern; wild-type = heterogeneous moderate staining.",
+      "result_states": ["aberrant/mutant pattern", "wild-type pattern"],
+      "therapy_linkage": "Diagnostic: aberrant p53 supports HGSC; wild-type p53 in a WT1+ serous tumor supports LGSC — a distinction that changes the entire treatment approach.",
+      "companion_dx_basis": "Diagnostic IHC standard (TP53 surrogate)",
+      "references": ["who5_femalegenital"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "OVA-BIO-0005",
+      "biomarker": "Mismatch repair / MSI (dMMR)",
+      "purpose": "both",
+      "assay": ["IHC (MMR proteins)", "PCR/NGS"],
+      "specimen": "FFPE",
+      "scoring": "MMR protein loss / MSI-high; most relevant in endometrioid and clear cell histotypes.",
+      "result_states": ["dMMR/MSI-H", "pMMR/MSS"],
+      "therapy_linkage": "Identifies Lynch syndrome candidates and gates tumor-agnostic checkpoint inhibitor therapy in dMMR cases.",
+      "companion_dx_basis": "Lynch screening; tumor-agnostic checkpoint approval",
+      "references": ["who5_femalegenital"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "OVA-BIO-0006",
+      "biomarker": "Napsin A / HNF1-beta",
+      "purpose": "prognostic",
+      "assay": ["IHC"],
+      "specimen": "FFPE",
+      "scoring": "Expression supporting clear cell histotype.",
+      "result_states": ["Napsin A+ / HNF1-beta+", "negative"],
+      "therapy_linkage": "Diagnostic for clear cell carcinoma (WT1-negative, p53 wild-type, Napsin A+) — histotype that is relatively chemo-resistant and managed differently.",
+      "companion_dx_basis": "Diagnostic IHC standard",
+      "references": ["who5_femalegenital"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "OVA-BIO-0007",
+      "biomarker": "HER2 (in mucinous histotype)",
+      "purpose": "predictive",
+      "assay": ["IHC", "ISH"],
+      "specimen": "FFPE",
+      "scoring": "Amplification/overexpression in mucinous carcinoma subset.",
+      "result_states": ["HER2 positive", "negative"],
+      "therapy_linkage": "HER2-positive mucinous ovarian carcinoma may be a candidate for HER2-directed approaches (emerging/trial context).",
+      "companion_dx_basis": "Histotype-specific literature",
+      "references": ["who5_femalegenital"],
+      "_provenance": "internal"
+    }
+  ],
+  "notes": "Ovarian biomarkers split cleanly into diagnostic-histotyping IHC (WT1, p53, Napsin A/HNF1-beta) and therapy-gating molecular (BRCA, HRD, dMMR, HER2). BRCA/HRD -> PARP is the headline therapeutic axis. Somatic BRCA via ctDNA is a Liquid Pulse crossover. Verify HRD assay cutoffs and PARP indications at write time."
+}

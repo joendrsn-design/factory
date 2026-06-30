@@ -37,6 +37,7 @@ from typing import Optional
 
 from base_module import BaseModule
 from models_config import get_model
+from magpie_common import is_magpie, carry_magpie
 from site_loader import SiteContext
 from artifacts import plan_metadata, new_article_id, save_artifact, extract_json
 
@@ -93,6 +94,103 @@ class PlanningModule(BaseModule):
     input_module = "research"
     max_retries = 2
     default_max_tokens = 8192  # plans can be large; avoid mid-JSON truncation
+
+    @staticmethod
+    def _magpie_slug(text: str) -> str:
+        """Short URL slug (<=5 words, drops parentheticals) for a substrate entity/biomarker."""
+        s = (text or "").lower()
+        s = re.sub(r"\([^)]*\)", "", s)            # drop parentheticals e.g. "(DCIS)"
+        s = re.sub(r"[^a-z0-9\s-]", "", s)
+        words = [w for w in re.split(r"[\s-]+", s) if w][:5]
+        return "-".join(words) or "article"
+
+    def _magpie_plan(self, metadata: dict, body: str, output_dir: str = "") -> tuple[dict, str]:
+        """Deterministic plan for a Magpie pillar: title/slug/seo from the cancer +
+        pillar code; the section skeleton lives in the Write prompt. Carries the blob."""
+        blob = metadata["magpie"]
+        cancer = (blob.get("cancer") or "").strip()
+        cancer_title = cancer.capitalize() if cancer else "Cross-cancer"
+        code = blob.get("pillar_code", "")
+        at = blob.get("article_type", "")
+
+        at = blob.get("article_type", "")
+        rec = blob.get("source_record", {}) or {}
+        if at == "A_classification":
+            entity = rec.get("entity") or blob.get("title_hint", "")
+            title = f"{entity}: Classification and Diagnostic Recognition"
+            slug = self._magpie_slug(entity)
+            keywords = ["classification", "histology"]
+            meta_desc = f"How pathologists recognize {entity} and why the distinction matters clinically."
+        elif at == "B_biomarker":
+            marker = rec.get("biomarker") or blob.get("title_hint", "")
+            title = f"{marker}: What It Tests and What It Determines"
+            slug = self._magpie_slug(marker)
+            keywords = ["biomarker", "testing"]
+            meta_desc = f"What {marker} testing measures and what it determines for treatment eligibility."
+        elif at == "D_liquid":
+            consumes = blob.get("consumes", {})
+            marker = ((consumes.get("ctdna_marker_slice") or [{}])[0] or {}).get("biomarker", "") \
+                or consumes.get("theme", "ctDNA")
+            title = f"Liquid Pulse: {marker} in Plasma / ctDNA Testing"
+            slug = "liquid-" + self._magpie_slug(marker)
+            keywords = ["liquid biopsy", "ctDNA"]
+            meta_desc = f"What plasma / ctDNA testing for {marker} can and cannot determine, and where the evidence stands."
+        elif at == "C_digital":
+            theme = blob.get("consumes", {}).get("theme", "") or blob.get("title_hint", "Digital Pulse")
+            title = f"Digital Pulse: {theme}"
+            slug = "digital-" + self._magpie_slug(theme)
+            keywords = ["digital pathology", "computational pathology", "AI"]
+            meta_desc = f"{theme}: what the technology does, the evidence behind it, and where it stands."
+        elif code == "P1":
+            title = f"{cancer_title} Cancer: An Evidence-Based Overview"
+            slug = f"{cancer}-overview"
+            keywords = ["overview", "epidemiology", "screening"]
+            meta_desc = (f"What {cancer or 'this cancer'} is, how common it is, how it's "
+                         f"found, and how diagnosis and treatment are guided.")
+        elif code == "P2":
+            title = f"{cancer_title} Cancer: Diagnosis and Classification"
+            slug = f"{cancer}-classification-overview"
+            keywords = ["classification", "histology", "diagnosis"]
+            meta_desc = f"How {cancer or 'this cancer'} is diagnosed and classified under the microscope."
+        elif code == "P3":
+            title = f"{cancer_title} Cancer: Biomarkers and Molecular Testing"
+            slug = f"{cancer}-biomarker-overview"
+            keywords = ["biomarkers", "molecular testing"]
+            meta_desc = f"How biomarker and molecular testing guides therapy-class decisions in {cancer or 'this cancer'}."
+        elif code == "P4":
+            title = f"{cancer_title} Cancer: Recent Developments in Diagnosis and Biomarker-Guided Treatment"
+            slug = f"{cancer}-recent-developments"
+            keywords = ["recent developments", "biomarkers"]
+            meta_desc = f"Recent developments in {cancer or 'this cancer'} diagnosis and biomarker-guided treatment."
+        else:
+            title = blob.get("title_hint") or metadata.get("topic", "Untitled")
+            slug = (f"{cancer}-overview" if cancer else "overview")
+            keywords = []
+            meta_desc = f"Evidence-based overview for {cancer or 'this topic'}."
+
+        meta_desc = (meta_desc + " Evidence-based, with primary citations.")[:155]
+
+        out = plan_metadata(
+            run_id=metadata.get("run_id", ""),
+            article_id=metadata.get("article_id", ""),
+            site_id=metadata.get("site_id", ""),
+            article_type=at,
+            topic=metadata.get("topic", ""),
+            title=title,
+            slug=slug,
+            target_word_count=1200,
+            seo_title=title[:60],
+            meta_description=meta_desc,
+            target_keywords=keywords,
+            internal_links=[],
+            section_count=6,
+        )
+        out["category"] = metadata.get("category", blob.get("section", ""))
+        carry_magpie(metadata, out)
+        if output_dir:
+            save_artifact(out, body, output_dir)
+        logger.info(f"[planning] ✅ Magpie plan {metadata.get('article_id', '')} ({at})")
+        return out, body
 
     def __init__(self, config_dir: str = "config/sites"):
         super().__init__(config_dir=config_dir)
@@ -487,6 +585,16 @@ Respond with ONLY the JSON object."""
         Otherwise, use the default planning logic.
         """
         import anthropic
+
+        # Magpie pillars have a FIXED skeleton (from the spec) — plan deterministically,
+        # no LLM. A blocked/incomplete artifact (verify gate) must never be planned.
+        if is_magpie(metadata):
+            if metadata.get("status") != "complete":
+                raise ValueError(
+                    f"[planning] refusing non-complete Magpie artifact "
+                    f"(status={metadata.get('status')})"
+                )
+            return self._magpie_plan(metadata, body, output_dir)
 
         valid, error = self.validate_input(metadata, body)
         if not valid:

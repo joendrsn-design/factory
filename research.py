@@ -75,6 +75,7 @@ from artifacts import (
     save_artifact, load_artifacts_from_dir,
     extract_json, strip_json_blocks,
 )
+from magpie_common import is_magpie, carry_magpie, references_for_write
 
 logger = logging.getLogger("article_factory.research")
 
@@ -1155,6 +1156,15 @@ The brief should be detailed enough that a writer can produce a full article wit
                 logger.warning(f"[{self.module_name}] Skipping {metadata.get('article_id')}: {error}")
                 continue
 
+            # Magpie substrate articles use the realtime verify path (search must run
+            # before any LLM call); they are not sent through batch synthesis.
+            if is_magpie(metadata):
+                logger.info(
+                    f"[research] Magpie artifact {metadata.get('article_id')} uses the "
+                    f"realtime verify path; skipping batch."
+                )
+                continue
+
             site_id = metadata.get("site_id", "")
             try:
                 site_context = self.loader.load(site_id)
@@ -1238,8 +1248,416 @@ The brief should be detailed enough that a writer can produce a full article wit
             return False, "Missing article_type"
         return True, ""
 
+    # ── Magpie substrate verify + package (no open synthesis) ────
+
+    def _magpie_research(self, metadata, body, site_context, output_dir=""):
+        """Substrate-sourced research. No open web synthesis: run the verification
+        gate on fast-moving therapy-linkage / classification-currency claims (reusing
+        the existing search provider), then package the substrate records + resolved
+        references into a brief for Write.
+
+        WHY THIS GATE EXISTS: a January-2026 substrate snapshot silently goes stale on
+        fast-moving biomarkers. Real example — a HER2 record that stopped at
+        DESTINY-Breast04 missed the Jan-2025 FDA HER2-ultralow approval; the snapshot
+        looked fine while the standard of care had moved. If a therapy-linkage claim
+        can't be confirmed against a current source, the topic is BLOCKED (status set
+        so Write cannot consume it) and surfaced in the run report — never silently
+        written from stale data.
+        """
+        blob = metadata["magpie"]
+
+        # P4 / C / D: external-source assembly is a distinct research mode (the search
+        # IS the article's spine, not a side-check on existing substrate claims).
+        if blob.get("needs_external"):
+            return self._magpie_external_research(metadata, body, site_context, output_dir)
+
+        ok, blocked_claims, verify_sources, notes = True, [], [], []
+        if blob.get("needs_verify"):
+            ok, blocked_claims, verify_sources, notes = self._magpie_verify(blob, site_context)
+
+        key_findings, sources, brief = self._magpie_build_brief(blob, verify_sources, notes)
+
+        at = metadata.get("article_type", "")
+        depth = (site_context.get_article_type(at) or {}).get("research_depth", "moderate")
+        out_meta = research_metadata(
+            run_id=metadata.get("run_id", ""),
+            article_id=metadata.get("article_id", ""),
+            site_id=metadata.get("site_id", ""),
+            article_type=at,
+            topic=metadata.get("topic", ""),
+            research_depth=depth,
+            source_count=len(sources),
+            key_findings=key_findings,
+            sources=sources,
+            from_cache=False,
+            statistics=[],
+        )
+        out_meta["category"] = metadata.get("category", blob.get("section", ""))
+        carry_magpie(metadata, out_meta)
+
+        if not ok:
+            out_meta["status"] = "blocked"
+            out_meta["block_reason"] = (
+                "Unconfirmable therapy-linkage/currency claim(s): " + "; ".join(blocked_claims)
+            )
+            if output_dir:
+                save_artifact(out_meta, brief, output_dir)
+            logger.warning(
+                f"[research] 🚫 Magpie verify BLOCKED {metadata.get('article_id','')}: "
+                f"{out_meta['block_reason'][:160]}"
+            )
+            return out_meta, brief
+
+        if output_dir:
+            save_artifact(out_meta, brief, output_dir)
+        logger.info(
+            f"[research] ✅ Magpie {metadata.get('article_id','')} ({at}) verify-passed"
+        )
+        return out_meta, brief
+
+    # ── External-source assembly (P4 / C / D) ────────────────
+
+    def _magpie_external_research(self, metadata, body, site_context, output_dir=""):
+        """Assemble CURRENT external primary sources (research-prompt-external contract).
+        Only confirmed developments reach Write; unconfirmed are surfaced in the report;
+        BLOCK if nothing confirms (there is nothing sourced to write)."""
+        blob = metadata["magpie"]
+        at = metadata.get("article_type", "")
+        depth = (site_context.get_article_type(at) or {}).get("research_depth", "deep")
+
+        # Full re-assembly retry: the bottleneck is run-to-run variance in BOTH the
+        # search results and the LLM extraction, so a fresh search+assembly recovers
+        # where retrying the LLM on stale evidence does not. Don't block on a fluke.
+        confirmed, excluded, sources, note = [], [], [], ""
+        for attempt in range(1, 4):
+            confirmed, excluded, sources, note = self._magpie_external_assemble(blob, site_context)
+            if confirmed or note == "no search provider configured":
+                break
+            logger.info(f"[research] external assembly empty (round {attempt}/3) — re-searching")
+        brief = self._magpie_external_brief(blob, confirmed, excluded, note)
+
+        out_meta = research_metadata(
+            run_id=metadata.get("run_id", ""),
+            article_id=metadata.get("article_id", ""),
+            site_id=metadata.get("site_id", ""),
+            article_type=at,
+            topic=metadata.get("topic", ""),
+            research_depth=depth,
+            source_count=len(sources),
+            key_findings=[d.get("headline", "") for d in confirmed][:20],
+            sources=sources,
+            from_cache=False,
+            statistics=[],
+        )
+        out_meta["category"] = metadata.get("category", blob.get("section", ""))
+        # thread confirmed developments forward for Write; surface excluded for the report
+        blob_out = {**blob, "external_developments": confirmed, "excluded_unconfirmed": excluded}
+        out_meta["magpie"] = blob_out
+        if blob_out.get("topic_id"):
+            out_meta["topic_id"] = blob_out["topic_id"]
+        out_meta["excluded_unconfirmed"] = excluded
+
+        if not confirmed:
+            out_meta["status"] = "blocked"
+            out_meta["block_reason"] = (
+                f"No confirmed external developments ({note or 'none found'}); "
+                f"{len(excluded)} unconfirmed surfaced for human follow-up."
+            )
+            if output_dir:
+                save_artifact(out_meta, brief, output_dir)
+            logger.warning(
+                f"[research] 🚫 Magpie external BLOCKED {metadata.get('article_id','')}: "
+                f"{out_meta['block_reason'][:160]}"
+            )
+            return out_meta, brief
+
+        if output_dir:
+            save_artifact(out_meta, brief, output_dir)
+        logger.info(
+            f"[research] ✅ Magpie external {metadata.get('article_id','')} ({at}): "
+            f"{len(confirmed)} confirmed, {len(excluded)} excluded"
+        )
+        return out_meta, brief
+
+    def _magpie_external_queries(self, blob: dict) -> list:
+        at = blob.get("article_type", "")
+        consumes = blob.get("consumes", {})
+        if at == "P4_recent_developments":
+            cancer = consumes.get("cancer", blob.get("cancer", ""))
+            return [
+                f"{cancer} cancer new FDA approval companion diagnostic biomarker 2025 2026",
+                f"{cancer} cancer WHO classification update diagnosis 2025 2026",
+                f"{cancer} cancer ctDNA NGS assay cleared validated recent",
+            ]
+        if at == "D_liquid":
+            theme = consumes.get("theme", "")
+            return [
+                f"{theme} ctDNA plasma assay sensitivity clinical trial 2025 2026",
+                f"{theme} liquid biopsy FDA approval MRD concordance",
+            ]
+        if at == "C_digital":
+            theme = consumes.get("theme", "")
+            return [f"{theme} digital pathology AI validation FDA clearance 2025 2026"]
+        return []
+
+    def _magpie_external_assemble(self, blob: dict, site_context) -> tuple:
+        """Run the type's searches, then one LLM call emitting the OUTPUT CONTRACT.
+        Returns (confirmed, excluded, sources, note). Degrades to empty (-> block)
+        when no real search provider is configured — external types REQUIRE sources."""
+        if isinstance(self.search_provider, NoSearchProvider):
+            return [], [], [], "no search provider configured"
+        evidence = []
+        for q in self._magpie_external_queries(blob):
+            try:
+                results = self.search_provider.search(q, max_results=5) or []
+            except Exception as e:
+                results = []
+                logger.warning(f"[research] external search failed for '{q[:60]}': {e}")
+            for r in results:
+                evidence.append({
+                    "title": r.get("title", ""), "url": r.get("url", ""),
+                    "content": (r.get("content") or r.get("snippet") or "")[:600],
+                })
+        if not evidence:
+            return [], [], [], "no search results"
+
+        # Single extraction here; _magpie_external_research wraps this in a full
+        # re-search+assembly retry, which recovers from variance better than re-running
+        # the LLM on identical evidence.
+        obj = self._magpie_external_llm(blob, evidence) or {}
+        developments = obj.get("developments", []) or []
+        confirmed = [d for d in developments if (d.get("confidence", "").lower() == "confirmed")]
+        excluded = (obj.get("excluded_unconfirmed", []) or []) + [d for d in developments if d not in confirmed]
+        sources = []
+        for d in confirmed:
+            c = d.get("citation", {}) or {}
+            sources.append({
+                "source_id": c.get("id", "") or (c.get("title", "")[:40]),
+                "url": c.get("id", ""), "title": c.get("title", ""),
+                "type": "external", "year": c.get("year", ""),
+            })
+        return confirmed, excluded, sources, ""
+
+    def _magpie_external_llm(self, blob: dict, evidence: list) -> dict:
+        import anthropic
+        at = blob.get("article_type", "")
+        consumes = blob.get("consumes", {})
+        theme_or_cancer = consumes.get("cancer") or consumes.get("theme") or blob.get("cancer", "")
+        substrate_slice = consumes.get("substrate_slice") or consumes.get("ctdna_marker_slice") or {}
+        system = (
+            "You are the Research stage for a clinical-diagnostics publication. Assemble a structured bundle "
+            "of CURRENT, PRIMARY external sources. PRIMARY only (peer-reviewed journals, FDA approvals/labels, "
+            "regulatory clearances, guideline bodies, major-society proceedings) — NOT aggregators or press "
+            "rewrites. NCCN is excluded. Every source DATED; prefer the last 18 months. Mark STATUS "
+            "(approved / cleared / guideline-endorsed / investigational / preprint). Do NOT reproduce source "
+            "text — capture the fact + citation. If a development cannot be confirmed against a provided primary "
+            "source, set confidence='unconfirmed'. JSON only."
+        )
+        user = (
+            f"Assemble external developments for: {theme_or_cancer} (type {at}).\n"
+            f"Substrate slice (connect developments back to these markers/entities):\n"
+            f"{json.dumps(substrate_slice)[:4000]}\n\n"
+            f"Search evidence:\n{json.dumps(evidence, indent=2)[:14000]}\n\n"
+            'Return EXACTLY: {"theme_or_cancer":"...","developments":[{"headline":"...","date":"MM/YYYY",'
+            '"status":"approved|cleared|guideline-endorsed|investigational|preprint","what_it_changes":"...",'
+            '"connects_to":[],"citation":{"authors":"","title":"","source":"","year":"","id":""},'
+            '"confidence":"confirmed|unconfirmed"}],"excluded_unconfirmed":[]}'
+        )
+        try:
+            client = anthropic.Anthropic()
+            resp = client.messages.create(model=self.model, max_tokens=3000, system=system,
+                                          messages=[{"role": "user", "content": user}])
+            txt = "".join(b.text for b in resp.content if b.type == "text")
+            return extract_json(txt) or {}
+        except Exception as e:
+            logger.warning(f"[research] Magpie external LLM failed: {e}")
+            return {}
+
+    def _magpie_external_brief(self, blob: dict, confirmed: list, excluded: list, note: str) -> str:
+        at = blob.get("article_type", "")
+        consumes = blob.get("consumes", {})
+        slice_ = consumes.get("substrate_slice") or consumes.get("ctdna_marker_slice") or {}
+        brief = [
+            f"# Magpie external-research brief — {at}",
+            f"\nSection: {blob.get('section','')}  |  Cancer/theme: "
+            f"{blob.get('cancer','') or consumes.get('theme','')}",
+            "\n## Confirmed developments (for Write)\n```json\n" + json.dumps(confirmed, indent=2)[:16000] + "\n```",
+            "\n## Substrate slice (grounding)\n```json\n" + json.dumps(slice_, indent=2)[:6000] + "\n```",
+        ]
+        if excluded:
+            brief.append(
+                "\n## Excluded (unconfirmed — NOT for Write; human follow-up)\n```json\n"
+                + json.dumps(excluded, indent=2)[:6000] + "\n```"
+            )
+        if note:
+            brief.append(f"\n## Note\n{note}")
+        return "\n".join(brief)
+
+    def _magpie_claims(self, blob: dict) -> list:
+        """Pull the verify-critical claims out of the substrate record(s)."""
+        claims = []
+        consumes = blob.get("consumes", {})
+        bio_records = consumes.get("biomarker_records") or (
+            [blob["source_record"]] if blob.get("source_record") and blob.get("article_type", "").startswith("B")
+            else []
+        )
+        for rec in bio_records:
+            tl = rec.get("therapy_linkage")
+            if tl:
+                marker = rec.get("biomarker", rec.get("id", ""))
+                claims.append({
+                    "id": rec.get("id", ""),
+                    "kind": "therapy_linkage",
+                    "claim": f"{marker}: {tl}",
+                    "query": f"{marker} therapy linkage FDA approval current guideline",
+                })
+        if blob.get("pillar_code") == "P2":
+            cancer = consumes.get("cancer", blob.get("cancer", ""))
+            who5 = consumes.get("who5_notes", {})
+            claims.append({
+                "id": f"{cancer}-currency",
+                "kind": "currency",
+                "claim": f"{cancer} classification currency (WHO5/ICC): {json.dumps(who5)[:400]}",
+                "query": f"{cancer} WHO classification 5th edition current update",
+            })
+        if blob.get("pillar_code") == "P1":
+            cancer = consumes.get("cancer", blob.get("cancer", ""))
+            epi = consumes.get("epidemiology", {})
+            head = {"incidence": epi.get("incidence", {}), "mortality": epi.get("mortality", {})}
+            # Currency only (does not block) — headline stats age fastest; flag if moved.
+            claims.append({
+                "id": f"{cancer}-epi-headline",
+                "kind": "currency",
+                "claim": f"{cancer} headline epidemiology: {json.dumps(head)[:400]}",
+                "query": f"{cancer} cancer incidence mortality survival statistics SEER ACS current",
+            })
+        return claims
+
+    def _magpie_verify(self, blob: dict, site_context) -> tuple:
+        """Return (ok, blocked_claims, verify_sources, notes).
+
+        Degrades safely: with no real search provider configured the gate is skipped
+        (the mandatory human review gate is the backstop) rather than blocking the whole
+        line offline. With a provider, an unconfirmable therapy-linkage claim blocks.
+        Only therapy-linkage claims block; classification-currency 'changed' is a flag.
+        """
+        claims = self._magpie_claims(blob)
+        if not claims:
+            return True, [], [], []
+        if isinstance(self.search_provider, NoSearchProvider):
+            logger.warning("[research] Magpie verify skipped: no search provider (human review is the backstop)")
+            return True, [], [], ["verify skipped — no search provider configured"]
+
+        evidence, verify_sources = [], []
+        for c in claims:
+            try:
+                results = self.search_provider.search(c["query"], max_results=4) or []
+            except Exception as e:
+                results = []
+                logger.warning(f"[research] verify search failed for '{c['query'][:60]}': {e}")
+            snippets = []
+            for r in results:
+                snippets.append({
+                    "title": r.get("title", ""), "url": r.get("url", ""),
+                    "content": (r.get("content") or r.get("snippet") or "")[:500],
+                })
+                verify_sources.append({
+                    "source_id": f"verify_{len(verify_sources) + 1}",
+                    "url": r.get("url", ""), "title": r.get("title", ""),
+                    "type": "verification", "year": "",
+                })
+            evidence.append({"claim_id": c["id"], "claim": c["claim"], "kind": c["kind"], "sources": snippets})
+
+        verdicts = self._magpie_verify_llm(evidence)
+        kind_by_id = {c["id"]: c["kind"] for c in claims}
+        blocked, notes = [], []
+        for v in verdicts:
+            cid, status = v.get("claim_id"), (v.get("status") or "").lower()
+            if v.get("note"):
+                notes.append(f"{cid}: {v['note']}")
+            if kind_by_id.get(cid) == "therapy_linkage" and status in ("unconfirmable", "unconfirmed", "contradicted"):
+                blocked.append(f"{cid} ({status})")
+        return (len(blocked) == 0), blocked, verify_sources, notes
+
+    def _magpie_verify_llm(self, evidence: list) -> list:
+        """One judgment call: for each claim, confirmed / changed / unconfirmable vs the
+        provided current sources. Conservative — unclear therapy linkage => unconfirmable."""
+        import anthropic
+        system = (
+            "You verify whether clinical claims are still current against the provided recent "
+            "web sources. For each claim return status 'confirmed' (a current source supports it), "
+            "'changed' (a current source shows it was updated/expanded), or 'unconfirmable' (no "
+            "provided source confirms it). Be conservative: if the sources do not clearly confirm "
+            "a therapy linkage, return 'unconfirmable'. JSON only."
+        )
+        user = (
+            "Claims and their search evidence:\n" + json.dumps(evidence, indent=2)[:12000]
+            + '\n\nReturn {"verdicts":[{"claim_id":"...","status":"confirmed|changed|unconfirmable","note":"..."}]}'
+        )
+        try:
+            client = anthropic.Anthropic()
+            resp = client.messages.create(model=self.model, max_tokens=1500, system=system,
+                                          messages=[{"role": "user", "content": user}])
+            txt = "".join(b.text for b in resp.content if b.type == "text")
+            return (extract_json(txt) or {}).get("verdicts", [])
+        except Exception as e:
+            logger.warning(f"[research] Magpie verify LLM failed ({e}) — failing closed (unconfirmable)")
+            return [{"claim_id": ev["claim_id"], "status": "unconfirmable", "note": "verify LLM error"}
+                    for ev in evidence]
+
+    def _magpie_build_brief(self, blob: dict, verify_sources=None, notes=None) -> tuple:
+        """Package the substrate payload + resolved references into a Write-ready brief."""
+        consumes = blob.get("consumes", {})
+        refs = references_for_write(blob.get("references", {}))
+
+        if "epidemiology" in consumes:
+            # P1 explainer: the payload is the epidemiology dataset + orientation summaries.
+            epi = consumes["epidemiology"]
+            key_findings = [f"{section}: {json.dumps(val)[:280]}" for section, val in epi.items()]
+            key_findings += [
+                f"classification axes: {', '.join([s for s in consumes.get('classification_summary', []) if s][:12])}",
+                f"biomarker themes: {', '.join([s for s in consumes.get('biomarker_summary', []) if s][:12])}",
+            ]
+            payload, payload_label = consumes, "Epidemiology + orientation"
+        else:
+            records = (
+                consumes.get("classification_records")
+                or consumes.get("biomarker_records")
+                or ([blob["source_record"]] if blob.get("source_record") else [])
+            )
+            key_findings = []
+            for rec in records:
+                name = rec.get("entity") or rec.get("biomarker") or rec.get("id", "")
+                detail = rec.get("clinical_note") or rec.get("therapy_linkage") or rec.get("morphology") or ""
+                key_findings.append(f"{name}: {detail}"[:300])
+            payload, payload_label = {"records": records}, "Records"
+
+        sources = [{
+            "source_id": k, "url": r.get("doi_or_id", ""), "title": r.get("title", ""),
+            "type": "reference", "year": r.get("year", ""),
+        } for k, r in refs.items()]
+        sources.extend(verify_sources or [])
+
+        brief = [
+            f"# Magpie substrate brief — {blob.get('article_type', '')}",
+            f"\nSection: {blob.get('section', '')}  |  Cancer: {blob.get('cancer', '')}",
+            f"\n## {payload_label}\n```json\n" + json.dumps(payload, indent=2)[:20000] + "\n```",
+            "\n## Resolved references\n```json\n" + json.dumps(refs, indent=2)[:6000] + "\n```",
+        ]
+        if notes:
+            brief.append("\n## Verification notes\n" + "\n".join(f"- {n}" for n in notes))
+        return key_findings, sources, "\n".join(brief)
+
     def validate_output(self, metadata: dict, body: str) -> tuple[bool, str]:
         """Research must have findings and substantive body, scaled by depth."""
+        if is_magpie(metadata):
+            if metadata.get("status") == "blocked":
+                return True, ""  # intentionally held; saved for the report
+            if not body or len(body.strip()) < 200:
+                return False, "Magpie research brief too short"
+            if not metadata.get("key_findings"):
+                return False, "Magpie research has no key findings"
+            return True, ""
         if not body or len(body.strip()) < 200:
             return False, f"Research brief too short ({len(body.strip())} chars, min 200)"
 
@@ -1311,6 +1729,11 @@ The brief should be detailed enough that a writer can produce a full article wit
 
         site_id = metadata.get("site_id", "")
         site_context = self.loader.load(site_id)
+
+        # Magpie substrate path: verify gate + package (no open synthesis, no vault).
+        if is_magpie(metadata):
+            return self._magpie_research(metadata, body, site_context, output_dir)
+
         research_cfg = site_context.research
         min_tier_1_2_ratio = research_cfg.get("source_quality", {}).get("min_tier_1_2_ratio", 0.0)
 

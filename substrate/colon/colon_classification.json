@@ -1,0 +1,59 @@
+{
+  "dataset": "colon_classification",
+  "scope": "Colorectal carcinoma, WHO Classification of Digestive System Tumours 5th ed. (2019). Histology is comparatively simpler; the action is in the molecular/MMR axis. Internal substrate only.",
+  "classification_records": [
+    {
+      "id": "CRC-CLS-0001",
+      "axis": "adenocarcinoma",
+      "entity": "Adenocarcinoma, NOS (colorectal)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Gland-forming malignant epithelium; graded low (well/moderately diff, >=50% glands) vs high (poorly diff, <50% glands).",
+      "defining_features": ["glandular differentiation", "desmoplastic invasion"],
+      "ihc_signature": ["CK20+", "CDX2+", "CK7- (typical)", "SATB2+"],
+      "molecular_signature": ["APC/KRAS/TP53 (chromosomal-instability pathway)", "or MSI/CIMP (serrated pathway)"],
+      "grading_system": "Two-tier (low- vs high-grade) by gland formation; note MSI-H tumors often look high-grade but behave better",
+      "clinical_note": "Default colorectal carcinoma. Grade by gland formation, but MMR status reframes prognosis independent of morphology.",
+      "references": ["who5_digestive"]
+    },
+    {
+      "id": "CRC-CLS-0002",
+      "axis": "adenocarcinoma_variant",
+      "entity": "Mucinous adenocarcinoma",
+      "who5_status": "recognized_subtype",
+      "morphology": ">50% of the tumor composed of extracellular mucin.",
+      "defining_features": [">50% extracellular mucin pools"],
+      "ihc_signature": ["CK20/CDX2 as adenocarcinoma", "often MSI-associated"],
+      "molecular_signature": ["enriched for MSI-H and CIMP/BRAF in right-sided tumors"],
+      "grading_system": "Grade by MMR status: MSI-H mucinous = low-grade; MSS mucinous = high-grade",
+      "clinical_note": "Mucinous morphology correlates with MSI and right-sided location; MMR status drives the grade interpretation.",
+      "references": ["who5_digestive"]
+    },
+    {
+      "id": "CRC-CLS-0003",
+      "axis": "adenocarcinoma_variant",
+      "entity": "Signet-ring cell carcinoma",
+      "who5_status": "recognized_subtype",
+      "morphology": ">50% signet-ring cells with intracytoplasmic mucin displacing the nucleus.",
+      "defining_features": [">50% signet-ring cells"],
+      "ihc_signature": ["CK20/CDX2 variable; may lose CDX2", "E-cadherin sometimes reduced"],
+      "molecular_signature": ["subset MSI-H; aggressive MSS subset"],
+      "grading_system": "High-grade by definition",
+      "clinical_note": "Adverse morphology; exclude metastatic gastric/lobular-breast signet-ring mimics by clinical/IHC context.",
+      "references": ["who5_digestive"]
+    },
+    {
+      "id": "CRC-CLS-0004",
+      "axis": "neuroendocrine",
+      "entity": "Neuroendocrine neoplasms (NET grades 1-3 / NEC / MiNEN)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Well-differentiated NET (organoid) graded 1-3 by Ki-67/mitoses; poorly differentiated NEC; mixed neuroendocrine-non-neuroendocrine neoplasm (MiNEN).",
+      "defining_features": ["NE morphology + marker expression", "MiNEN: each component >=30%"],
+      "ihc_signature": ["synaptophysin/chromogranin/INSM1", "Ki-67 for grading"],
+      "molecular_signature": ["NEC shares TP53/RB1 with other high-grade NEC"],
+      "grading_system": "NET G1/G2/G3 by Ki-67 & mitoses; NEC high-grade; MiNEN by component proportions",
+      "clinical_note": "Distinct from adenocarcinoma; the NET grading axis (Ki-67) parallels other GI/pancreatic NETs.",
+      "references": ["who5_digestive"]
+    }
+  ],
+  "notes": "Colorectal classification is molecular-forward: morphology is simpler, but MMR/MSI status reframes grade and prognosis. Sidedness (right vs left) correlates with molecular pathway. Verify grading specifics at write time."
+}

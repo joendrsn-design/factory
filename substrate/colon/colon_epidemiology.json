@@ -1,0 +1,93 @@
+{
+  "dataset": "colon_epidemiology",
+  "source_policy": "SEER Cancer Stat Facts, ACS Cancer Facts & Figures 2026, USPSTF. Citable; refresh yearly. NCCN not used.",
+  "epidemiology": {
+    "incidence": {
+      "us_annual_new_cases": "colorectal ~150,000+ annually; ~52,000+ deaths (ACS/SEER); colon-specific subset of colorectal",
+      "incidence_rate": "colorectal 37.6 per 100,000/year, age-adjusted (2019-2023)",
+      "lifetime_risk": "colorectal ~3.9% (about 1 in 24-26)",
+      "rank_among_cancers": "colorectal is the 4th most common cancer and 2nd leading cause of cancer death",
+      "trend": "Overall incidence falling ~0.5%/yr, but RISING in adults under 50 (early-onset CRC) \u2014 a key epidemiologic shift"
+    },
+    "mortality": {
+      "us_annual_deaths": "~55,230 colorectal deaths projected for 2026 (ACS)",
+      "mortality_rate": "colorectal 12.7 per 100,000/year (2020-2024)",
+      "five_year_survival_overall": "colorectal ~65% (relative)",
+      "survival_by_stage": {
+        "localized": "~91%",
+        "regional": "~73%",
+        "distant": "~13-18%"
+      },
+      "trend": "Mortality declining overall but rising in younger adults, mirroring the incidence shift"
+    },
+    "risk_factors": [
+      {
+        "factor": "age",
+        "detail": "Risk rises with age, though early-onset disease is increasing",
+        "modifiable": false
+      },
+      {
+        "factor": "inherited syndromes",
+        "detail": "Lynch syndrome (MMR), familial adenomatous polyposis (APC); strong family history",
+        "modifiable": false
+      },
+      {
+        "factor": "inflammatory bowel disease",
+        "detail": "Long-standing ulcerative colitis or Crohn colitis",
+        "modifiable": false
+      },
+      {
+        "factor": "personal history of adenomatous polyps",
+        "detail": "Prior advanced adenomas/serrated lesions",
+        "modifiable": false
+      },
+      {
+        "factor": "diet and lifestyle",
+        "detail": "Processed/red meat, low fiber, obesity, physical inactivity, alcohol, smoking",
+        "modifiable": true
+      }
+    ],
+    "screening": {
+      "modalities": [
+        "colonoscopy",
+        "FIT / high-sensitivity stool tests",
+        "stool DNA",
+        "CT colonography",
+        "flexible sigmoidoscopy"
+      ],
+      "guideline_summary": "USPSTF recommends screening for average-risk adults beginning at age 45 through 75 (individualized 76-85). Earlier for high-risk/hereditary. Cite USPSTF/ACS; NCCN not used.",
+      "notes": "Start age lowered to 45 in response to rising early-onset disease; colonoscopy both screens and removes precursor polyps"
+    },
+    "presentation": "Change in bowel habits, rectal bleeding/blood in stool, abdominal discomfort, iron-deficiency anemia, or detected on screening before symptoms"
+  },
+  "references": [
+    "seer_statfacts",
+    "acs_ff_2026",
+    "uspstf_crc_2021"
+  ],
+  "_provenance": "internal audit only",
+  "epidemiology_references": {
+    "seer_statfacts": {
+      "authors": "National Cancer Institute",
+      "title": "SEER Cancer Stat Facts",
+      "source": "surveillance.cancer.gov / seer.cancer.gov/statfacts",
+      "year": "2026 release (2019-2023 incidence, 2020-2024 mortality, 2016-2022 survival)",
+      "doi_or_id": "SEER*Explorer"
+    },
+    "acs_ff_2026": {
+      "authors": "Siegel RL, Kratzer TB, Wagle NS, Sung H, Jemal A.",
+      "title": "Cancer statistics, 2026",
+      "source": "CA Cancer J Clin",
+      "year": "2026",
+      "doi_or_id": "10.3322/caac.70043"
+    },
+    "uspstf_crc_2021": {
+      "authors": "US Preventive Services Task Force",
+      "title": "Colorectal Cancer: Screening (2021 Recommendation)",
+      "source": "uspreventiveservicestaskforce.org",
+      "year": "2021",
+      "doi_or_id": "USPSTF 2021"
+    }
+  },
+  "verification_status": "VERIFIED against SEER Cancer Stat Facts (2026 release) and ACS Cancer Facts & Figures 2026 via live search on build date; pathologist should still confirm before publication. Stats are the fastest-aging content \u2014 refresh yearly."
+}

@@ -438,6 +438,15 @@ class RealtimePipeline:
                 res_meta, res_body = self.research.run_single(
                     topic_meta, topic_body, PIPELINE["research"]
                 )
+                # Verification gate (Magpie): a blocked topic must not reach Write.
+                # Surface it in the report; do not silently drop or continue downstream.
+                if res_meta.get("status") == "blocked":
+                    summary.setdefault("blocked", []).append({
+                        "article_id": article_id, "topic": topic_name,
+                        "reason": res_meta.get("block_reason", "verification gate"),
+                    })
+                    logger.warning(f"[orchestrator] 🚫 Blocked by verify gate: {topic_name}")
+                    continue
                 summary["researched"] += 1
 
                 # Step 2.5: Expansion (if enabled) — generates multiple angles from one research

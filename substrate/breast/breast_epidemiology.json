@@ -1,0 +1,101 @@
+{
+  "dataset": "breast_epidemiology",
+  "source_policy": "SEER Cancer Stat Facts, ACS Cancer Facts & Figures 2026, USPSTF. Citable; refresh yearly. NCCN not used.",
+  "epidemiology": {
+    "incidence": {
+      "us_annual_new_cases": "~321,910 new invasive cases in women (plus ~60,730 DCIS) projected for 2026; ~2,670 in men (ACS)",
+      "incidence_rate": "132.5 per 100,000 women/year, age-adjusted (2019-2023)",
+      "lifetime_risk": "~13% of women (about 1 in 8)",
+      "rank_among_cancers": "2nd most common cancer diagnosis overall; most common cancer in women",
+      "trend": "Incidence rising ~1% per year over the past decade; steeper (~1.4%/yr) in women under 50"
+    },
+    "mortality": {
+      "us_annual_deaths": "~42,140 women projected for 2026 (plus ~530 men)",
+      "mortality_rate": "18.9 per 100,000 women/year (2020-2024)",
+      "five_year_survival_overall": "~91% (relative)",
+      "survival_by_stage": {
+        "localized": "~99%",
+        "regional": "~86%",
+        "distant": "~32%"
+      },
+      "trend": "Death rates down ~44% from 1989 through 2022, attributed to earlier detection and improved treatment"
+    },
+    "risk_factors": [
+      {
+        "factor": "age",
+        "detail": "Median age at diagnosis ~63; risk rises with age",
+        "modifiable": false
+      },
+      {
+        "factor": "female sex",
+        "detail": "Women account for >99% of cases",
+        "modifiable": false
+      },
+      {
+        "factor": "germline BRCA1/2 and other pathogenic variants",
+        "detail": "Substantially elevated lifetime risk; informs risk-reducing strategies",
+        "modifiable": false
+      },
+      {
+        "factor": "family history / prior chest radiation",
+        "detail": "First-degree family history; high-dose chest radiation before age 30",
+        "modifiable": false
+      },
+      {
+        "factor": "breast density / benign proliferative lesions",
+        "detail": "High mammographic density; atypical hyperplasia; prior DCIS/LCIS",
+        "modifiable": false
+      },
+      {
+        "factor": "reproductive/hormonal",
+        "detail": "Early menarche/late menopause, nulliparity or first child after 30, combined menopausal hormone therapy",
+        "modifiable": true
+      },
+      {
+        "factor": "lifestyle",
+        "detail": "Excess body weight (esp. postmenopausal), alcohol, physical inactivity",
+        "modifiable": true
+      }
+    ],
+    "screening": {
+      "modalities": [
+        "mammography (digital / tomosynthesis)",
+        "breast MRI for high-risk",
+        "ultrasound as adjunct"
+      ],
+      "guideline_summary": "USPSTF (2024) recommends biennial screening mammography for average-risk women 40-74. ACS offers annual options beginning at 45 with earlier choice from 40. High-risk women may begin earlier with MRI. Cite USPSTF/ACS; NCCN not used.",
+      "notes": "Start age and interval remain areas of active debate; supplemental screening for dense breasts is evolving"
+    },
+    "presentation": "Often detected on screening before symptoms; symptomatic presentation includes a palpable mass, skin or nipple change, or nipple discharge"
+  },
+  "references": [
+    "seer_statfacts",
+    "acs_ff_2026",
+    "uspstf_breast_2024"
+  ],
+  "_provenance": "internal audit only",
+  "epidemiology_references": {
+    "seer_statfacts": {
+      "authors": "National Cancer Institute",
+      "title": "SEER Cancer Stat Facts",
+      "source": "surveillance.cancer.gov / seer.cancer.gov/statfacts",
+      "year": "2026 release (2019-2023 incidence, 2020-2024 mortality, 2016-2022 survival)",
+      "doi_or_id": "SEER*Explorer"
+    },
+    "acs_ff_2026": {
+      "authors": "Siegel RL, Kratzer TB, Wagle NS, Sung H, Jemal A.",
+      "title": "Cancer statistics, 2026",
+      "source": "CA Cancer J Clin",
+      "year": "2026",
+      "doi_or_id": "10.3322/caac.70043"
+    },
+    "uspstf_breast_2024": {
+      "authors": "US Preventive Services Task Force",
+      "title": "Breast Cancer: Screening (2024 Recommendation)",
+      "source": "uspreventiveservicestaskforce.org",
+      "year": "2024",
+      "doi_or_id": "USPSTF 2024"
+    }
+  },
+  "verification_status": "VERIFIED against SEER Cancer Stat Facts (2026 release) and ACS Cancer Facts & Figures 2026 via live search on build date; pathologist should still confirm before publication. Stats are the fastest-aging content \u2014 refresh yearly."
+}

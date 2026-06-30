@@ -1,0 +1,40 @@
+{
+  "references": {
+    "who5_urogenital": {
+      "authors": "WHO Classification of Tumours Editorial Board",
+      "title": "Urinary and Male Genital Tumours, 5th ed.",
+      "source": "IARC, Lyon",
+      "year": "2022",
+      "doi_or_id": "ISBN 978-92-832-4512-4"
+    },
+    "isup_grading": {
+      "authors": "Epstein JI, et al.",
+      "title": "The 2014 ISUP Consensus Conference on Gleason Grading / Grade Groups",
+      "source": "Am J Surg Pathol",
+      "year": "2016",
+      "doi_or_id": "10.1097/PAS.0000000000000530"
+    },
+    "prostate_parp_lit": {
+      "authors": "varies",
+      "title": "PARP inhibitors in HRR-altered mCRPC",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify (e.g., PROfound, TRITON)"
+    },
+    "prostate_msi_lit": {
+      "authors": "varies",
+      "title": "MSI-H prostate cancer and checkpoint blockade",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify"
+    },
+    "prostate_psma_lit": {
+      "authors": "varies",
+      "title": "PSMA radioligand therapy in mCRPC",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify (e.g., VISION)"
+    }
+  },
+  "verification_status": "UNVERIFIED \u2014 DOIs/trial attributions assembled from knowledge + search; pathologist confirms each before publication."
+}

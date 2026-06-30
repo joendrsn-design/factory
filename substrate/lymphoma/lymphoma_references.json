@@ -1,0 +1,40 @@
+{
+  "references": {
+    "who5_lymphoid": {
+      "authors": "Alaggio R, Amador C, Anagnostopoulos I, et al.",
+      "title": "The 5th edition of the WHO Classification of Haematolymphoid Tumours: Lymphoid Neoplasms",
+      "source": "Leukemia",
+      "year": "2022",
+      "doi_or_id": "10.1038/s41375-022-01620-2"
+    },
+    "icc_2022": {
+      "authors": "Campo E, Jaffe ES, Cook JR, et al.",
+      "title": "The International Consensus Classification of Mature Lymphoid Neoplasms",
+      "source": "Blood",
+      "year": "2022",
+      "doi_or_id": "10.1182/blood.2022015851"
+    },
+    "hans_2004": {
+      "authors": "Hans CP, Weisenburger DD, Greiner TC, et al.",
+      "title": "Confirmation of the molecular classification of DLBCL by immunohistochemistry using a tissue microarray",
+      "source": "Blood",
+      "year": "2004",
+      "doi_or_id": "10.1182/blood-2003-05-1545"
+    },
+    "davies_2024_hgbl": {
+      "authors": "Davies AJ",
+      "title": "The high-grade B-cell lymphomas: double hit and more",
+      "source": "Blood",
+      "year": "2024",
+      "doi_or_id": "10.1182/blood.2023020780"
+    },
+    "wagener_11q": {
+      "authors": "Wagener R, Seufert J, Raimondi F, et al.",
+      "title": "The mutational landscape of Burkitt-like lymphoma with 11q aberration is distinct from that of Burkitt lymphoma",
+      "source": "Blood",
+      "year": "2019",
+      "doi_or_id": "10.1182/blood-2018-07-864025"
+    }
+  },
+  "verification_status": "UNVERIFIED \u2014 DOIs/trial attributions assembled from knowledge + search; pathologist confirms each before publication."
+}

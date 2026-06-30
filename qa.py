@@ -44,6 +44,7 @@ from base_module import BaseModule
 from models_config import get_model
 from site_loader import SiteContext
 from artifacts import qa_metadata, new_article_id
+from magpie_common import is_magpie, carry_magpie
 
 logger = logging.getLogger("article_factory.qa")
 
@@ -721,6 +722,17 @@ Score and issue your verdict. JSON only."""
 
         rewrite_instructions = result.get("rewrite_instructions", "")
 
+        # Magpie clinical/legal firewall: a Magpie PUBLISH never auto-publishes.
+        # Convert to PUBLISH_PENDING_REVIEW so Deposit holds it for pathologist sign-off.
+        # The universal QA checks above (hallucinated-source KILL, citation enforcement,
+        # threshold logic) stay fully active.
+        if verdict == "PUBLISH" and site_context.raw_config.get("magpie", {}).get("review_required"):
+            verdict = "PUBLISH_PENDING_REVIEW"
+            logger.info(
+                f"[qa] Magpie review gate: PUBLISH -> PUBLISH_PENDING_REVIEW for "
+                f"{input_metadata.get('article_id', '')}"
+            )
+
         # Build metadata
         meta = qa_metadata(
             run_id=input_metadata.get("run_id", ""),
@@ -745,6 +757,8 @@ Score and issue your verdict. JSON only."""
         meta["meta_description"] = input_metadata.get("meta_description", "")
         meta["tags"] = input_metadata.get("tags", [])
         meta["sources"] = input_metadata.get("sources", [])
+        meta["category"] = input_metadata.get("category", "")
+        carry_magpie(input_metadata, meta)  # thread substrate identity to Deposit
 
         # Store slop metrics for trend analysis across runs (Change 8)
         meta["slop_metrics"] = slop_metrics
@@ -783,7 +797,8 @@ Score and issue your verdict. JSON only."""
     def validate_output(self, metadata: dict, body: str) -> tuple[bool, str]:
         """QA output must have a valid verdict and score."""
         verdict = metadata.get("verdict", "")
-        if verdict not in ("PUBLISH", "REWRITE", "KILL"):
+        # PUBLISH_PENDING_REVIEW is the Magpie review-gated form of PUBLISH (set in parse_response).
+        if verdict not in ("PUBLISH", "PUBLISH_PENDING_REVIEW", "REWRITE", "KILL"):
             return False, f"Invalid verdict: {verdict}"
 
         score = metadata.get("score", -1)

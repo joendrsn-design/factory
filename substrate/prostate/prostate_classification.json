@@ -1,0 +1,59 @@
+{
+  "dataset": "prostate_classification",
+  "scope": "Prostate carcinoma, WHO Classification of Urinary and Male Genital Tumours 5th ed. (2022). Grading (Gleason/ISUP Grade Groups) is the classification spine. Internal substrate only.",
+  "classification_records": [
+    {
+      "id": "PRO-CLS-0001",
+      "axis": "acinar_adenocarcinoma",
+      "entity": "Acinar adenocarcinoma (conventional)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Infiltrative small glands lacking basal cells; diagnosis integrates architecture, nucleomegaly/nucleoli, and basal-cell absence.",
+      "defining_features": ["loss of basal cell layer", "infiltrative growth", "nucleolar prominence"],
+      "ihc_signature": ["basal markers ABSENT (p63-, HMWCK-)", "AMACR/P504S positive", "NKX3.1+ (prostate lineage)"],
+      "molecular_signature": ["TMPRSS2::ERG fusion (~50%)", "PTEN loss", "SPOP/FOXA1 subsets"],
+      "grading_system": "Gleason score -> ISUP Grade Group 1-5 (the central classification axis)",
+      "clinical_note": "The dominant prostate cancer. Grading drives risk stratification more than subtype; the basal-cell/AMACR/NKX3.1 IHC triad confirms malignancy on small foci.",
+      "references": ["who5_urogenital", "isup_grading"]
+    },
+    {
+      "id": "PRO-CLS-0002",
+      "axis": "grading_framework",
+      "entity": "ISUP Grade Groups (Gleason architecture)",
+      "who5_status": "grading_system",
+      "morphology": "Gleason pattern 3 (discrete glands), 4 (fused/cribriform/glomeruloid), 5 (sheets/single cells/comedonecrosis).",
+      "defining_features": ["GG1 = Gleason 6 (3+3)", "GG2 = 3+4", "GG3 = 4+3", "GG4 = 8", "GG5 = 9-10"],
+      "ihc_signature": ["n/a (architectural grading)"],
+      "molecular_signature": ["cribriform/intraductal patterns carry adverse genomics"],
+      "grading_system": "5-tier Grade Group system; cribriform pattern 4 and intraductal carcinoma are adverse features reported separately",
+      "clinical_note": "Grade Group is the single most important pathology output for prostate risk. Cribriform and intraductal carcinoma are independently adverse and must be flagged.",
+      "references": ["who5_urogenital", "isup_grading"]
+    },
+    {
+      "id": "PRO-CLS-0003",
+      "axis": "intraductal",
+      "entity": "Intraductal carcinoma of the prostate (IDC-P)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Malignant epithelial proliferation filling/expanding ducts and acini WITH basal cells retained; dense cribriform/solid or marked nuclear atypia.",
+      "defining_features": ["basal cells PRESENT (vs invasive)", "expansile cribriform/solid with atypia"],
+      "ihc_signature": ["basal markers retained (p63/HMWCK+)", "AMACR+"],
+      "molecular_signature": ["associated with high-grade invasive cancer and adverse genomics (PTEN loss, BRCA2)"],
+      "grading_system": "Reported as an adverse feature; not assigned a Gleason grade itself by convention",
+      "clinical_note": "Near-always associated with aggressive invasive cancer; its presence on biopsy changes management. A high-value distinct article.",
+      "references": ["who5_urogenital"]
+    },
+    {
+      "id": "PRO-CLS-0004",
+      "axis": "neuroendocrine",
+      "entity": "Neuroendocrine / small cell carcinoma of prostate (incl. treatment-emergent)",
+      "who5_status": "recognized_subtype",
+      "morphology": "High-grade small/large-cell neuroendocrine morphology; may emerge after androgen-deprivation therapy.",
+      "defining_features": ["NE morphology", "often AR-/PSA-low", "treatment-emergent context"],
+      "ihc_signature": ["synaptophysin/chromogranin/INSM1+", "AR and PSA frequently lost", "NKX3.1 often retained as lineage marker"],
+      "molecular_signature": ["RB1 and TP53 loss; lineage plasticity from adenocarcinoma"],
+      "grading_system": "High-grade",
+      "clinical_note": "Aggressive; the treatment-emergent NE phenotype (post-ADT lineage switch) is a distinct, clinically important entity.",
+      "references": ["who5_urogenital"]
+    }
+  ],
+  "notes": "Prostate differs from the others: GRADING (ISUP Grade Group) is the classification spine, not subtype. The basal-cell/AMACR/NKX3.1 IHC triad is the diagnostic workhorse. Cribriform pattern 4 and IDC-P are the adverse-feature articles. Verify grading conventions at write time."
+}

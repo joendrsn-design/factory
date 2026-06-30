@@ -1,0 +1,85 @@
+{
+  "dataset": "lung_classification",
+  "scope": "Lung carcinoma, WHO Classification of Thoracic Tumours 5th ed. (2021). Histology gates which molecular tests are run, so the A<->B linkage is especially tight. Internal substrate only.",
+  "classification_records": [
+    {
+      "id": "LNG-CLS-0001",
+      "axis": "non_small_cell",
+      "entity": "Lung adenocarcinoma",
+      "who5_status": "recognized_subtype",
+      "morphology": "Glandular/lepidic/acinar/papillary/micropapillary/solid patterns; graded by predominant + high-grade pattern (IASLC grading).",
+      "defining_features": ["glandular differentiation or mucin", "lepidic spread (AIS/MIA spectrum)"],
+      "ihc_signature": ["TTF-1+ (most)", "napsin A+", "CK7+"],
+      "molecular_signature": ["the targetable-driver landscape lives here (EGFR, ALK, ROS1, etc.)"],
+      "grading_system": "IASLC architectural grading (well/moderate/poor by predominant and high-grade patterns)",
+      "clinical_note": "The histology that carries nearly all actionable drivers; comprehensive molecular profiling is standard in advanced non-squamous NSCLC.",
+      "references": ["who5_thoracic", "iaslc_grading"]
+    },
+    {
+      "id": "LNG-CLS-0002",
+      "axis": "non_small_cell",
+      "entity": "Lung squamous cell carcinoma",
+      "who5_status": "recognized_subtype",
+      "morphology": "Keratinization, intercellular bridges, or basaloid pattern.",
+      "defining_features": ["keratinization/intercellular bridges", "central location classically"],
+      "ihc_signature": ["p40+ (most specific)", "p63+", "CK5/6+", "TTF-1-"],
+      "molecular_signature": ["fewer targetable drivers; PD-L1 still relevant"],
+      "grading_system": "Conventional differentiation grade",
+      "clinical_note": "p40 is the key separator from adenocarcinoma. Targetable-driver yield is low, so PD-L1 and immunotherapy dominate biomarker workup.",
+      "references": ["who5_thoracic"]
+    },
+    {
+      "id": "LNG-CLS-0003",
+      "axis": "neuroendocrine",
+      "entity": "Small cell lung carcinoma (SCLC)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Small cells, scant cytoplasm, finely granular chromatin, nuclear molding, brisk mitoses and necrosis.",
+      "defining_features": ["high-grade neuroendocrine morphology", "Ki-67 typically very high"],
+      "ihc_signature": ["synaptophysin/chromogranin+", "INSM1+", "TTF-1 often +", "Ki-67 high"],
+      "molecular_signature": ["near-universal TP53 and RB1 loss", "emerging transcription-factor subtypes (ASCL1, NEUROD1, POU2F3, etc.)"],
+      "grading_system": "High-grade by definition",
+      "clinical_note": "Distinct treatment paradigm; molecular subtyping is research/emerging. Distinguish from large-cell neuroendocrine carcinoma.",
+      "references": ["who5_thoracic"]
+    },
+    {
+      "id": "LNG-CLS-0004",
+      "axis": "neuroendocrine",
+      "entity": "Large cell neuroendocrine carcinoma (LCNEC)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Large cells with neuroendocrine architecture (organoid, palisading, rosettes), high mitotic rate, necrosis.",
+      "defining_features": ["neuroendocrine morphology + large cells", "NE marker positivity required"],
+      "ihc_signature": ["synaptophysin/chromogranin/INSM1+", "Ki-67 high"],
+      "molecular_signature": ["heterogeneous; SCLC-like and NSCLC-like molecular subsets"],
+      "grading_system": "High-grade",
+      "clinical_note": "Requires NE marker confirmation; biologically straddles SCLC and NSCLC.",
+      "references": ["who5_thoracic"]
+    },
+    {
+      "id": "LNG-CLS-0005",
+      "axis": "neuroendocrine",
+      "entity": "Carcinoid tumors (neuroendocrine tumors, typical/atypical)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Organoid neuroendocrine architecture; typical vs atypical separated by mitotic count and necrosis.",
+      "defining_features": ["typical: <2 mitoses/2mm2, no necrosis", "atypical: 2-10 mitoses/2mm2 and/or focal necrosis"],
+      "ihc_signature": ["synaptophysin/chromogranin+", "Ki-67 lower than high-grade NEC"],
+      "molecular_signature": ["MEN1 alterations in subset"],
+      "grading_system": "Typical vs atypical carcinoid by mitoses + necrosis",
+      "clinical_note": "Well-differentiated NETs distinct from high-grade NEC; the mitosis/necrosis thresholds are the classification spine.",
+      "references": ["who5_thoracic"]
+    },
+    {
+      "id": "LNG-CLS-0006",
+      "axis": "preinvasive_minimally_invasive",
+      "entity": "Adenocarcinoma in situ / minimally invasive adenocarcinoma (AIS/MIA)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Pure lepidic growth (AIS) or lepidic with <=5 mm invasion (MIA).",
+      "defining_features": ["lepidic pattern", "AIS: no invasion; MIA: <=5mm invasive focus"],
+      "ihc_signature": ["TTF-1+, napsin A+ as adenocarcinoma"],
+      "molecular_signature": ["EGFR mutations can be present early"],
+      "grading_system": "Part of the adenocarcinoma spectrum",
+      "clinical_note": "Excellent prognosis when fully resected; the lepidic-to-invasive spectrum is a common classification point.",
+      "references": ["who5_thoracic"]
+    }
+  ],
+  "notes": "Histology determines molecular-test triage: actionable drivers concentrate in adenocarcinoma. p40 (squamous) vs TTF-1/napsin (adeno) is the foundational IHC split. Verify IASLC grading specifics at write time."
+}

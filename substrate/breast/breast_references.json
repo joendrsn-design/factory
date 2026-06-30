@@ -1,0 +1,153 @@
+{
+  "references": {
+    "who5_breast": {
+      "authors": "WHO Classification of Tumours Editorial Board",
+      "title": "Breast Tumours",
+      "source": "WHO Classification of Tumours, 5th ed., vol. 2. IARC, Lyon",
+      "year": "2019",
+      "doi_or_id": "ISBN 978-92-832-4500-1",
+      "verify": "Primary taxonomy authority. Confirm subtype list and any corrigenda."
+    },
+    "who5_whatsnew": {
+      "authors": "Various (breast pathology review)",
+      "title": "What's new in breast pathology: WHO 5th edition and biomarker updates",
+      "source": "Journal of Pathology and Translational Medicine (and equivalent review literature)",
+      "year": "2022",
+      "doi_or_id": "secondary review — use to locate primary, not as sole cite"
+    },
+    "who5_nen_review": {
+      "authors": "Review authors",
+      "title": "Neuroendocrine Neoplasms of the Breast: WHO Classification and Review",
+      "source": "review literature (PMC8750232)",
+      "year": "2022",
+      "doi_or_id": "PMC8750232"
+    },
+    "cap_breast_protocol": {
+      "authors": "College of American Pathologists",
+      "title": "Protocol for the Examination of Specimens From Patients With Invasive Carcinoma of the Breast",
+      "source": "CAP Cancer Protocols",
+      "year": "current",
+      "doi_or_id": "cap.org cancer protocols — cite current version at writing time"
+    },
+    "ascocap_erpr_2020": {
+      "authors": "Allison KH, Hammond MEH, Dowsett M, et al.",
+      "title": "Estrogen and Progesterone Receptor Testing in Breast Cancer: ASCO/CAP Guideline Update",
+      "source": "J Clin Oncol / Arch Pathol Lab Med",
+      "year": "2020",
+      "doi_or_id": "10.1200/JCO.19.02309"
+    },
+    "ascocap_her2_2018": {
+      "authors": "Wolff AC, Hammond MEH, Allison KH, et al.",
+      "title": "HER2 Testing in Breast Cancer: ASCO/CAP Clinical Practice Guideline Focused Update",
+      "source": "J Clin Oncol",
+      "year": "2018",
+      "doi_or_id": "10.1200/JCO.2018.77.8738"
+    },
+    "ascocap_her2_2023": {
+      "authors": "Wolff AC, Somerfield MR, Dowsett M, et al.",
+      "title": "HER2 Testing in Breast Cancer: ASCO–CAP Guideline Update",
+      "source": "J Clin Oncol",
+      "year": "2023",
+      "doi_or_id": "10.1200/JCO.22.02864"
+    },
+    "destiny_b04": {
+      "authors": "Modi S, Jacot W, Yamashita T, et al.",
+      "title": "Trastuzumab Deruxtecan in Previously Treated HER2-Low Advanced Breast Cancer",
+      "source": "N Engl J Med",
+      "year": "2022",
+      "doi_or_id": "10.1056/NEJMoa2203690"
+    },
+    "ki67_working_group": {
+      "authors": "Nielsen TO, Leung SCY, Rimm DL, et al.",
+      "title": "Assessment of Ki67 in Breast Cancer: Updated Recommendations From the International Ki67 in Breast Cancer Working Group",
+      "source": "J Natl Cancer Inst",
+      "year": "2021",
+      "doi_or_id": "10.1093/jnci/djaa201"
+    },
+    "tailorx": {
+      "authors": "Sparano JA, Gray RJ, Makower DF, et al.",
+      "title": "Adjuvant Chemotherapy Guided by a 21-Gene Expression Assay in Breast Cancer",
+      "source": "N Engl J Med",
+      "year": "2018",
+      "doi_or_id": "10.1056/NEJMoa1804710"
+    },
+    "rxponder": {
+      "authors": "Kalinsky K, Barlow WE, Gralow JR, et al.",
+      "title": "21-Gene Assay to Inform Chemotherapy Benefit in Node-Positive Breast Cancer",
+      "source": "N Engl J Med",
+      "year": "2021",
+      "doi_or_id": "10.1056/NEJMoa2108873"
+    },
+    "mindact": {
+      "authors": "Cardoso F, van't Veer LJ, Bogaerts J, et al.",
+      "title": "70-Gene Signature as an Aid to Treatment Decisions in Early-Stage Breast Cancer",
+      "source": "N Engl J Med",
+      "year": "2016",
+      "doi_or_id": "10.1056/NEJMoa1602253"
+    },
+    "olympia": {
+      "authors": "Tutt ANJ, Garber JE, Kaufman B, et al.",
+      "title": "Adjuvant Olaparib for Patients With BRCA1- or BRCA2-Mutated Breast Cancer",
+      "source": "N Engl J Med",
+      "year": "2021",
+      "doi_or_id": "10.1056/NEJMoa2105215"
+    },
+    "olympiad": {
+      "authors": "Robson M, Im SA, Senkus E, et al.",
+      "title": "Olaparib for Metastatic Breast Cancer in Patients With a Germline BRCA Mutation",
+      "source": "N Engl J Med",
+      "year": "2017",
+      "doi_or_id": "10.1056/NEJMoa1706450"
+    },
+    "embraca": {
+      "authors": "Litton JK, Rugo HS, Ettl J, et al.",
+      "title": "Talazoparib in Patients With Advanced Breast Cancer and a Germline BRCA Mutation",
+      "source": "N Engl J Med",
+      "year": "2018",
+      "doi_or_id": "10.1056/NEJMoa1802905"
+    },
+    "solar1": {
+      "authors": "André F, Ciruelos E, Rubovszky G, et al.",
+      "title": "Alpelisib for PIK3CA-Mutated, Hormone Receptor–Positive Advanced Breast Cancer",
+      "source": "N Engl J Med",
+      "year": "2019",
+      "doi_or_id": "10.1056/NEJMoa1813904"
+    },
+    "keynote355": {
+      "authors": "Cortes J, Cescon DW, Rugo HS, et al.",
+      "title": "Pembrolizumab plus Chemotherapy in Advanced Triple-Negative Breast Cancer (KEYNOTE-355)",
+      "source": "N Engl J Med / Lancet",
+      "year": "2020–2022",
+      "doi_or_id": "verify primary readout citation at writing time"
+    },
+    "keynote158": {
+      "authors": "Marabelle A, et al.",
+      "title": "Pembrolizumab in MSI-H / TMB-high tumors (tumor-agnostic)",
+      "source": "Lancet Oncol / J Clin Oncol",
+      "year": "2020",
+      "doi_or_id": "verify specific arm citation"
+    },
+    "trk_agnostic": {
+      "authors": "Drilon A, et al.; Doebele RC, et al.",
+      "title": "Larotrectinib / Entrectinib in TRK fusion-positive cancers",
+      "source": "N Engl J Med / Lancet Oncol",
+      "year": "2018–2020",
+      "doi_or_id": "verify per drug"
+    },
+    "emerald": {
+      "authors": "Bidard FC, Kaklamani VG, Neven P, et al.",
+      "title": "Elacestrant versus Standard Endocrine Therapy in ER+/HER2- Advanced Breast Cancer (EMERALD)",
+      "source": "J Clin Oncol",
+      "year": "2022",
+      "doi_or_id": "10.1200/JCO.22.00338"
+    },
+    "ajcc8": {
+      "authors": "Amin MB, Edge S, Greene F, et al. (eds)",
+      "title": "AJCC Cancer Staging Manual, 8th ed.",
+      "source": "Springer, New York",
+      "year": "2017",
+      "doi_or_id": "ISBN 978-3-319-40617-6"
+    }
+  },
+  "verification_status": "UNVERIFIED — DOIs and trial attributions assembled from knowledge + search; pathologist must confirm each before publication. Items flagged 'verify' need a live source check at writing time."
+}
