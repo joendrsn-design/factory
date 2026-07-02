@@ -43,6 +43,8 @@ import logging
 from typing import Optional
 
 from base_module import BaseModule
+from models_config import get_model
+from magpie_common import is_magpie, carry_magpie, references_for_write
 from site_loader import SiteContext
 from artifacts import (
     article_metadata, new_article_id,
@@ -372,7 +374,7 @@ RULES:
 class WriteModule(BaseModule):
 
     module_name = "write"
-    model = "claude-opus-4-7"  # Default, can be overridden per article type
+    model = get_model("write")  # Opus — overridable per article type via model_override
     input_module = "planning"
     max_retries = 2
     default_max_tokens = 8192
@@ -402,6 +404,10 @@ class WriteModule(BaseModule):
         site_context: SiteContext,
     ) -> tuple[str, str]:
         """Build the writing prompt. This is where voice lives or dies."""
+
+        # Magpie pillars use a fixed, substrate-injected prompt (P2/P3).
+        if is_magpie(metadata):
+            return self._magpie_build_prompt(metadata, body, site_context)
 
         article_type_id = metadata.get("article_type", "")
         article_type = site_context.get_article_type(article_type_id)
@@ -677,7 +683,257 @@ Write the complete article now. Markdown only."""
         if self_audit:
             meta["self_audit"] = self_audit
 
+        # Magpie: carry the substrate blob forward; citations come from the resolved
+        # substrate references (the plan artifact carries no sources array).
+        carry_magpie(input_metadata, meta)
+        if is_magpie(input_metadata):
+            blob = input_metadata.get("magpie", {})
+            ext = blob.get("external_developments") or []
+            if ext:
+                # P4/C/D: citations come from the confirmed external developments (their
+                # references dict is empty by design) — without this QA sees zero sources
+                # and fails every [n], blocking the whole external Pulse line.
+                meta["sources"] = []
+                for d in ext:
+                    c = d.get("citation", {}) or {}
+                    meta["sources"].append({
+                        "source_id": c.get("id", "") or (c.get("title", "")[:40]),
+                        "title": c.get("title", ""), "url": c.get("id", ""), "year": c.get("year", ""),
+                    })
+            else:
+                _refs = references_for_write(blob.get("references", {}))
+                meta["sources"] = [
+                    {"source_id": k, "title": r.get("title", ""), "url": r.get("doi_or_id", ""), "year": r.get("year", "")}
+                    for k, r in _refs.items()
+                ]
+
         return meta, article_body
+
+    # ── Magpie pillar prompt (P2/P3, substrate-injected) ─────
+
+    def _magpie_build_prompt(self, metadata: dict, body: str, site_context: SiteContext) -> tuple[str, str]:
+        """Build the Magpie prompt, then fold in any QA rewrite feedback (the fixed
+        substrate prompt otherwise ignores the rewrite loop)."""
+        system, user = self._magpie_build_prompt_base(metadata, body, site_context)
+        revision = self._magpie_revision_block(metadata, body)
+        if revision:
+            user = user + "\n\n" + revision
+        return system, user
+
+    @staticmethod
+    def _magpie_revision_block(metadata: dict, body: str) -> str:
+        """Surface QA feedback on a rewrite pass. The orchestrator puts the verdict
+        feedback in metadata['previous_feedback'] and appends 'REWRITE INSTRUCTIONS'
+        to the plan body."""
+        fb = metadata.get("previous_feedback", "") or ""
+        inst = ""
+        if body and "REWRITE INSTRUCTIONS" in body:
+            inst = body[body.index("REWRITE INSTRUCTIONS"):][:2000]
+        if not fb and not inst:
+            return ""
+        parts = ["REVISION PASS — this is a rewrite. Fix the issues below while keeping every rule above "
+                 "(complete citations, no _provenance, NCCN not named, educational framing):"]
+        if fb:
+            parts.append(f"QA feedback: {fb[:1400]}")
+        if inst:
+            parts.append(inst)
+        return "\n".join(parts)
+
+    def _magpie_build_prompt_base(self, metadata: dict, body: str, site_context: SiteContext) -> tuple[str, str]:
+        """Build the P2/P3 pillar writing prompt (adapted from PILLAR_WRITE_PROMPTS.md),
+        injecting the substrate record set + resolved references. Medical voice."""
+        blob = metadata["magpie"]
+        code = blob.get("pillar_code", "")
+        cancer = blob.get("cancer", "")
+        consumes = blob.get("consumes", {})
+        refs = references_for_write(blob.get("references", {}))
+        wmin, wmax = 900, 1400
+
+        guardrails = (
+            "VOICE & GUARDRAILS (non-negotiable):\n"
+            "- Original prose only. Cite primary/authoritative literature inline as [n]; end with a numbered References section.\n"
+            "- Educational framing for a mixed audience (informed patients, clinicians, trainees).\n"
+            "- 'The evidence suggests' — epistemic humility; flag contested or fast-moving areas explicitly.\n"
+            "- Therapy linkage = eligibility for a drug CLASS, never patient-directed treatment advice.\n"
+            "- Do NOT reproduce NCCN or any guideline-vendor recommendation language; never name NCCN.\n"
+            "- Use ONLY the provided records and references — no invented facts, numbers, or sources.\n"
+        )
+
+        # ── A/B spokes (one record each) ──
+        at = blob.get("article_type", "")
+        rec = blob.get("source_record", {}) or {}
+        if at in ("A_classification", "B_biomarker"):
+            swmin, swmax = 700, 1100
+            spoke_system = (
+                "You are writing an educational pathology article for a clinical diagnostics audience "
+                "(pathologists, oncologists, trainees, informed patients), as an experienced diagnostic "
+                "pathologist. Explain what the diagnostics determine, educationally — never give the "
+                "patient treatment advice.\n\n" + guardrails
+            )
+            if at == "A_classification":
+                user = (
+                    f"Write an educational article about this {cancer} cancer histologic entity "
+                    f"({swmin}-{swmax} words).\n\n"
+                    f"Entity: {rec.get('entity','')}\nWHO5 status: {rec.get('who5_status','')}\n"
+                    f"Morphology: {rec.get('morphology','')}\nDefining features: {rec.get('defining_features', [])}\n"
+                    f"IHC signature: {rec.get('ihc_signature', [])}\nMolecular signature: {rec.get('molecular_signature', [])}\n"
+                    f"Grading: {rec.get('grading_system','')}\nClinical note: {rec.get('clinical_note','')}\n\n"
+                    f"Sections: what it is and where it sits in current classification; how a pathologist "
+                    f"recognizes it (morphology -> IHC -> molecular, in that diagnostic order); "
+                    f"grading/classification; why the distinction matters clinically. If WHO5 status is "
+                    f"umbrella_IBC-NST / removed / new_entity, state it explicitly (the freshness signal). "
+                    f"End with a numbered References section. Omit any fact not in the record.\n\n"
+                    f"Available references (cite inline as [n]):\n```json\n{json.dumps(refs, indent=2)[:6000]}\n```\n"
+                )
+            else:  # B_biomarker
+                user = (
+                    f"Write an educational article about this {cancer} cancer diagnostic biomarker "
+                    f"({swmin}-{swmax} words).\n\n"
+                    f"Biomarker: {rec.get('biomarker','')}\nPurpose: {rec.get('purpose','')}\n"
+                    f"Assay: {rec.get('assay', [])}\nSpecimen / preanalytics: {rec.get('specimen','')}\n"
+                    f"Scoring: {rec.get('scoring','')}\nResult states: {rec.get('result_states', [])}\n"
+                    f"Therapy linkage: {rec.get('therapy_linkage','')}\nEvidence basis: {rec.get('companion_dx_basis','')}\n\n"
+                    f"Sections: what the test measures (brief biology); how it's tested (assay, specimen, "
+                    f"preanalytic constraints, scoring); what each result state means; what it determines for "
+                    f"treatment eligibility (frame as 'informs eligibility for [drug class]', never 'you "
+                    f"should take X'); caveats / what's evolving (flag contested cutoffs such as HER2-low). "
+                    f"End with a numbered References section. Omit any fact not in the record.\n\n"
+                    f"Available references (cite inline as [n]):\n```json\n{json.dumps(refs, indent=2)[:6000]}\n```\n"
+                )
+            return spoke_system, user
+
+        # ── P4 / D: external-sourced (developments come from the Research stage) ──
+        external = blob.get("external_developments", [])
+        # Shared rules for the externally-sourced types: complete citations + human voice.
+        ext_rules = (
+            "CITATIONS (critical): cite each development inline as [n] and build the References section directly "
+            "from the citation objects below. EVERY [n] you use MUST have a matching numbered entry (authors, "
+            "title, source, year, DOI/id), and every confirmed development you discuss must be cited. Never cite "
+            "a number you do not list, and never list a source you do not cite — dangling citations fail QA.\n"
+            "VOICE: write in a measured, human register — use contractions where natural and let the sections "
+            "flow as narrative, not parallel info-boxes. Convey each development's regulatory status inside the "
+            "prose (e.g., \"the FDA approved X in October 2024…\"); do NOT use bolded status labels or status "
+            "tags appended to headers."
+        )
+        if at == "P4_recent_developments":
+            slice_ = consumes.get("substrate_slice", {})
+            system = (
+                f"You are writing the Recent Developments briefing for {cancer} cancer diagnostics — what has "
+                f"changed in roughly the last 18 months in diagnosis and biomarker-guided treatment. Synthesize "
+                f"the confirmed external developments into a coherent narrative and connect each back to the "
+                f"specific marker/entity in our existing coverage. Lead with what changed. Distinguish approved / "
+                f"cleared / guideline-endorsed from investigational / preprint within the prose. Use ONLY the "
+                f"confirmed developments provided — never add others from memory.\n\n" + guardrails
+            )
+            user = (
+                f"Write the Recent Developments article for {cancer} cancer (800-1300 words).\n\n"
+                f"Sections: the overall direction of change; each significant development (what changed, what it "
+                f"changes for diagnosis/testing, its status, the marker/entity it connects to); what remains "
+                f"investigational; what to watch.\n\n" + ext_rules + "\n\n"
+                f"Confirmed developments (each with a citation object + status):\n```json\n{json.dumps(external, indent=2)[:14000]}\n```\n\n"
+                f"Our existing coverage (connect developments to these):\n```json\n{json.dumps(slice_, indent=2)[:4000]}\n```\n"
+            )
+            return system, user
+        if at == "D_liquid":
+            theme = consumes.get("theme", "")
+            ctdna = consumes.get("ctdna_marker_slice", [])
+            system = (
+                "You are writing for Liquid Pulse, a liquid-biopsy / ctDNA column for pathologists and "
+                "oncologists. The spine is the clinical question a plasma-based assay informs; the substrate "
+                "supplies the specific ctDNA-capable markers; the external literature supplies trial evidence. "
+                "Be precise about what plasma assays can and cannot detect — do not overstate sensitivity. Use "
+                "ONLY the confirmed external developments provided.\n\n" + guardrails
+            )
+            user = (
+                f"Write a Liquid Pulse article on this theme: {theme} (800-1300 words).\n\n"
+                f"Sections: the clinical question the liquid assay informs; what's measured and how (analyte, "
+                f"assay, sensitivity / limit-of-detection); the evidence (trials establishing tissue-vs-plasma "
+                f"concordance or a plasma-specific indication); where it stands (validated vs investigational, "
+                f"e.g. MRD-guided decisions).\n\n" + ext_rules + "\n\n"
+                f"Confirmed external developments:\n```json\n{json.dumps(external, indent=2)[:12000]}\n```\n\n"
+                f"ctDNA-capable markers from substrate:\n```json\n{json.dumps(ctdna, indent=2)[:5000]}\n```\n"
+            )
+            return system, user
+        if at == "C_digital":
+            theme = consumes.get("theme", "")
+            slice_ = consumes.get("substrate_slice", {})
+            system = (
+                "You are writing for Digital Pulse, a digital-pathology / computational-diagnostics column with "
+                "the editorial sensibility of the Digital Pathology Today podcast. Audience: pathologists and "
+                "diagnostics professionals. The SPINE is an external development (a method, validation study, or "
+                "regulatory event); the diagnostic substrate is supporting grounding, not the subject. Lead with "
+                "the development, not the substrate. Flag investigational vs cleared/validated clearly. Use ONLY "
+                "the confirmed external developments provided.\n\n" + guardrails
+            )
+            user = (
+                f"Write a Digital Pulse article on this theme: {theme} (800-1300 words).\n\n"
+                f"Sections: the development (what changed / what the method is); the diagnostic problem it "
+                f"addresses (grounded in the substrate — name the specific markers and cancers it touches); the "
+                f"evidence (validation data, with citations); where it stands (regulatory status, limitations, "
+                f"open questions).\n\n" + ext_rules + "\n\n"
+                f"Confirmed external developments:\n```json\n{json.dumps(external, indent=2)[:12000]}\n```\n\n"
+                f"Substrate grounding (markers/cancers this theme touches):\n```json\n{json.dumps(slice_, indent=2)[:4000]}\n```\n"
+            )
+            return system, user
+
+        if code == "P1":
+            epi = consumes.get("epidemiology", {})
+            system = (
+                f"You are writing the lead educational overview of {cancer} cancer for a clinical diagnostics "
+                f"site. Audience: informed patients, clinicians, and trainees. Write as an experienced "
+                f"diagnostician explaining the disease clearly. Population statistics are NOT individual "
+                f"prognoses — state this explicitly. Describe screening guidance neutrally; do not issue "
+                f"screening or treatment recommendations to the individual reader.\n\n" + guardrails
+            )
+            user = (
+                f"Write the cancer explainer / overview for {cancer} cancer ({wmin}-{wmax} words).\n\n"
+                f"Sections: what it is; how common it is (incidence, lifetime risk, rank, trend); who's at risk "
+                f"(modifiable vs not); how it's found (screening modalities + neutral guideline gist + common "
+                f"presentation); outlook (survival by stage WITH the explicit caveat that these are population "
+                f"figures, not individual predictions); a 2-3 sentence bridge to how it's diagnosed/classified; "
+                f"a 2-3 sentence bridge to how treatment is guided. CITATIONS ARE MANDATORY: every "
+                f"statistic and factual claim MUST carry an inline bracketed citation like [1] mapped to the "
+                f"references below — never state a figure or fact without one. If a figure is not in the data, "
+                f"omit it. End with a numbered References section listing each [n] you cite.\n\n"
+                f"Epidemiology data:\n```json\n{json.dumps(epi, indent=2)[:12000]}\n```\n\n"
+                f"Classification axes (orientation bridge to the diagnosis pillar):\n```json\n{json.dumps(consumes.get('classification_summary', []), indent=2)[:2000]}\n```\n\n"
+                f"Biomarker themes (orientation bridge to the biomarker pillar):\n```json\n{json.dumps(consumes.get('biomarker_summary', []), indent=2)[:2000]}\n```\n\n"
+                f"Available references (cite inline as [n] mapped to these keys):\n```json\n{json.dumps(refs, indent=2)[:6000]}\n```\n"
+            )
+        elif code == "P2":
+            system = (
+                f"You are writing the H&E diagnosis & classification overview for {cancer} cancer — how the "
+                f"pathologist examines the specimen and how the disease is classified. Synthesize ACROSS the "
+                f"provided classification records into a coherent orientation; do not just list them. This page is a "
+                f"HUB: name each major subtype so it can be linked to its detail article. Flag where classification "
+                f"recently changed (WHO5/ICC).\n\n" + guardrails
+            )
+            user = (
+                f"Write the H&E diagnosis & classification overview for {cancer} cancer ({wmin}-{wmax} words).\n\n"
+                f"Sections: from specimen to diagnosis; the H&E picture (synthesized morphology); the major "
+                f"categories (name each subtype); how grading/staging works; why classification matters; what's "
+                f"current (recent reclassification). End with a numbered References section.\n\n"
+                f"Classification records:\n```json\n{json.dumps(consumes.get('classification_records', []), indent=2)[:18000]}\n```\n\n"
+                f"Classification-currency notes:\n```json\n{json.dumps(consumes.get('who5_notes', {}), indent=2)[:2000]}\n```\n\n"
+                f"Available references (cite inline as [n] mapped to these keys):\n```json\n{json.dumps(refs, indent=2)[:6000]}\n```\n"
+            )
+        else:  # P3 (and any other pillar routed here)
+            system = (
+                f"You are writing the biomarker & molecular overview for {cancer} cancer — the orientation to "
+                f"predictive and prognostic testing. Synthesize across the provided biomarkers, grouped by purpose "
+                f"(diagnostic/lineage vs prognostic vs predictive/therapy-gating). Connect each result to a therapy "
+                f"CLASS, never patient-directed advice. This page is a HUB: name each biomarker so it can be linked "
+                f"to its detail article. Flag fast-moving areas.\n\n" + guardrails
+            )
+            user = (
+                f"Write the biomarker & molecular overview for {cancer} cancer ({wmin}-{wmax} words).\n\n"
+                f"Sections: why molecular testing matters here; what gets tested (grouped by purpose; name each "
+                f"biomarker); how results steer treatment (result -> drug class); specimen/testing realities "
+                f"(tissue vs liquid, reflex testing); what's emerging. End with a numbered References section.\n\n"
+                f"Biomarker records:\n```json\n{json.dumps(consumes.get('biomarker_records', []), indent=2)[:18000]}\n```\n\n"
+                f"Available references (cite inline as [n] mapped to these keys):\n```json\n{json.dumps(refs, indent=2)[:6000]}\n```\n"
+            )
+        return system, user
 
     def _source_hero_image(
         self,
@@ -728,6 +984,31 @@ Write the complete article now. Markdown only."""
         word_count = metadata.get("word_count", 0)
         target = metadata.get("target_word_count", 0)
 
+        # Magpie pillars: validate against the article-type word range (the standard
+        # 85-130%-of-target band is too narrow for the 900-1400 pillar range), and
+        # hard-assert no _provenance leaked into the body.
+        if is_magpie(metadata):
+            try:
+                sc = self.loader.load(metadata.get("site_id", ""))
+                at = sc.get_article_type(metadata.get("article_type", "")) or {}
+            except Exception:
+                at = {}
+            wmin = int(at.get("word_count_min", 800) * 0.85)
+            wmax = int(at.get("word_count_max", 1600) * 1.15)
+            if word_count < wmin:
+                return False, f"Magpie article under range: {word_count} words (<{wmin})"
+            if word_count > wmax:
+                return False, f"Magpie article over range: {word_count} words (>{wmax})"
+            if not re.search(r"^#\s+", body, re.MULTILINE):
+                return False, "Article missing H1 title"
+            if not re.search(r"\[\d+\]", body):
+                return False, "Magpie article requires inline citations [n]"
+            if "## References" not in body and "## Sources" not in body:
+                return False, "Magpie article requires a References section"
+            if "_provenance" in body:
+                return False, "Internal _provenance leaked into the article body"
+            return True, ""
+
         if word_count < 100:
             return False, f"Article too short: {word_count} words"
 
@@ -764,6 +1045,12 @@ Write the complete article now. Markdown only."""
             max_words = article_type.get("word_count_max", 2000)
         else:
             max_words = metadata.get("target_word_count", 2000)
+
+        # Magpie articles end with a full reference list (long DOIs/URLs) AND a
+        # self-audit block; the default 1.5x budget truncated the references mid-list.
+        # Give generous headroom so citations + audit always complete.
+        if is_magpie(metadata):
+            return min(int(max_words * 2.5) + 1500, 16384)
 
         # 1.3 tokens/word * max_words + 500 for references/metadata overhead
         tokens = int(max_words * 1.5) + 1000

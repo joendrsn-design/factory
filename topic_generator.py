@@ -45,6 +45,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from site_loader import SiteLoader, SiteContext
+from models_config import get_model
+from magpie_common import strip_provenance_deep
 from artifacts import (
     topic_metadata, new_run_id, new_article_id,
     save_artifact, load_artifacts_from_dir,
@@ -88,6 +90,27 @@ class PublishingHistory:
         topics += self._cache.get("_all", [])
         return list(set(t.lower().strip() for t in topics))
 
+    def get_existing_topic_ids(self, site_id: str = "") -> set:
+        """Stable substrate topic_ids already in the pipeline or published.
+        Substrate-mode dedup keys on this (deterministic), not on topic text."""
+        ids: set = set()
+        dirs = list(self.pipeline_dirs)
+        if self.published_dir:
+            dirs.append(self.published_dir)
+        for directory in dirs:
+            for meta, _body, _f in load_artifacts_from_dir(directory):
+                if site_id and meta.get("site_id") != site_id:
+                    continue
+                # A blocked artifact (verify gate / external-assembly failure) is NOT
+                # "done" — leave its topic_id retry-eligible so a transient block (network
+                # / flaky assembly) doesn't silently drop the topic from all future runs.
+                if meta.get("status") == "blocked":
+                    continue
+                tid = meta.get("topic_id")
+                if tid:
+                    ids.add(tid)
+        return ids
+
     def find_similar_topics(
         self, candidate_topic: str, site_id: str, threshold: float = 0.82
     ) -> list[dict]:
@@ -125,8 +148,13 @@ class PublishingHistory:
         coverage = {}
 
         for cluster in keyword_clusters:
-            cluster_name = cluster.get("name", cluster.get("label", ""))
-            cluster_keywords = [k.lower() for k in cluster.get("keywords", [])]
+            # Clusters may be dicts ({name/label, keywords}) or bare keyword lists.
+            if isinstance(cluster, dict):
+                cluster_name = cluster.get("name", cluster.get("label", ""))
+                cluster_keywords = [k.lower() for k in cluster.get("keywords", [])]
+            else:
+                cluster_keywords = [str(k).lower() for k in cluster]
+                cluster_name = cluster_keywords[0] if cluster_keywords else ""
             count = 0
             for topic in existing:
                 if any(kw in topic.lower() for kw in cluster_keywords):
@@ -165,7 +193,7 @@ class PublishingHistory:
 
 class TopicGenerator:
 
-    model = "claude-haiku-4-5-20251001"
+    model = get_model("topic_generator")
     default_max_tokens = 2048
 
     def __init__(self, config_dir: str = "config/sites", published_dir: str = ""):
@@ -189,6 +217,18 @@ class TopicGenerator:
 
         site_context = self.loader.load(site_id)
         existing = self.history.get_existing_topics(site_id)
+
+        # Magpie substrate-source mode: enumerate from the substrate (spokes) +
+        # pillars instead of open-topic generation. Deterministic dedup on topic_id.
+        if site_context.raw_config.get("magpie", {}).get("enabled"):
+            existing_ids = self.history.get_existing_topic_ids(site_id)
+            topics = self._generate_magpie_topics(
+                site_context, count, article_type_filter, run_id, existing_ids
+            )
+            logger.info(
+                f"[topic_gen] Generated {len(topics)} Magpie substrate topics for {site_id}"
+            )
+            return topics
 
         # Determine which article types to generate for
         article_types = site_context.get_enabled_article_types()
@@ -276,6 +316,114 @@ class TopicGenerator:
             distribution[0] = (at, count + remaining)
 
         return distribution
+
+    # ── Magpie substrate-source mode ─────────────────────────
+
+    def _generate_magpie_topics(
+        self,
+        site_context: SiteContext,
+        count: int,
+        article_type_filter: str,
+        run_id: str,
+        existing_ids: set,
+    ) -> list[tuple[dict, str]]:
+        """Enumerate candidate articles from the Magpie substrate (spokes) and
+        pillars; emit only enabled article types; dedup on stable topic_id."""
+        from magpie_substrate import enumerate_all, SubstrateReader
+        from magpie_pillars import enumerate_pillars, enumerate_thematic
+
+        mag = site_context.raw_config.get("magpie", {})
+        root = mag.get("substrate_root", "substrate")
+        cancers = mag.get("cancers", [])
+        section_map = mag.get("section_map", {})
+
+        enabled = {at["type_id"] for at in site_context.get_enabled_article_types()}
+        if article_type_filter:
+            enabled &= {article_type_filter}
+
+        # per-cancer reference index, to resolve spoke ref KEYS -> ref objects
+        refs_by_cancer: dict = {}
+        for c in cancers:
+            try:
+                refs_by_cancer[c] = SubstrateReader(Path(root) / c, c).references
+            except Exception:
+                refs_by_cancer[c] = {}
+
+        candidates: list[dict] = []
+        for p in enumerate_pillars(root, cancers):      # hubs first (references already resolved)
+            candidates.append(p.to_topic(site_context.site_id))
+        for t in enumerate_thematic(root, cancers):     # cross-cancer Pulse themes (D)
+            candidates.append(t.to_topic(site_context.site_id))
+        for s in enumerate_all(root, cancers):          # then spokes
+            d = s.to_topic(site_context.site_id)
+            d["cancer"] = s.cancer  # CandidateTopic.to_topic omits cancer; preserve for section routing
+            idx = refs_by_cancer.get(s.cancer, {})
+            d["references"] = {k: idx[k] for k in d.get("references", []) if k in idx}
+            candidates.append(d)
+
+        results: list[tuple[dict, str]] = []
+        for cand in candidates:
+            if cand["article_type"] not in enabled:
+                continue
+            tid = cand["topic_id"]
+            if tid in existing_ids:
+                continue
+            results.append(
+                self._magpie_candidate_to_artifact(cand, site_context, run_id, section_map)
+            )
+            existing_ids.add(tid)
+            if count and len(results) >= count:
+                break
+        return results
+
+    def _magpie_candidate_to_artifact(
+        self,
+        cand: dict,
+        site_context: SiteContext,
+        run_id: str,
+        section_map: dict,
+    ) -> tuple[dict, str]:
+        """Map one substrate candidate (spoke or pillar) onto a topic artifact."""
+        cancer = cand.get("cancer", "")
+        # thematic types carry an explicit section; cancer types map via section_map
+        section = cand.get("section") or section_map.get(cancer, cancer)
+        title_hint = cand.get("title_hint", "")
+
+        meta = topic_metadata(
+            run_id=run_id,
+            article_id=new_article_id(),
+            site_id=site_context.site_id,
+            article_type=cand["article_type"],
+            topic=title_hint,
+            keywords=[],
+            angle="",
+        )
+        meta["category"] = section          # route to its section
+        meta["topic_id"] = cand["topic_id"]  # mirrored for dedup/link scans
+
+        blob = {
+            "topic_id": cand["topic_id"],
+            "article_type": cand["article_type"],
+            "cancer": cancer,
+            "section": section,
+            "needs_verify": bool(cand.get("needs_verify")),
+            "needs_external": bool(cand.get("needs_external")),
+            "references": strip_provenance_deep(cand.get("references", {})),
+        }
+        if "source_record" in cand:   # spoke
+            blob["record_id"] = cand.get("record_id")
+            blob["source_record"] = strip_provenance_deep(cand["source_record"])
+        if "consumes" in cand:        # pillar
+            blob["pillar_code"] = cand.get("pillar_code")
+            blob["consumes"] = strip_provenance_deep(cand["consumes"])
+        meta["magpie"] = blob
+
+        body = (
+            f"# {title_hint}\n\n"
+            f"Magpie substrate-sourced **{cand['article_type']}** "
+            f"for {cancer or 'cross-cancer'} (section: {section}).\n"
+        )
+        return meta, body
 
     def _build_system_prompt(
         self,

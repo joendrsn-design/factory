@@ -43,6 +43,14 @@ Usage:
 
 import os
 import sys
+
+# Force UTF-8 on stdout/stderr so the run report (arrows/emoji) never crashes
+# with UnicodeEncodeError under the Windows cp1252 console.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
 import json
 import logging
 import argparse
@@ -430,6 +438,15 @@ class RealtimePipeline:
                 res_meta, res_body = self.research.run_single(
                     topic_meta, topic_body, PIPELINE["research"]
                 )
+                # Verification gate (Magpie): a blocked topic must not reach Write.
+                # Surface it in the report; do not silently drop or continue downstream.
+                if res_meta.get("status") == "blocked":
+                    summary.setdefault("blocked", []).append({
+                        "article_id": article_id, "topic": topic_name,
+                        "reason": res_meta.get("block_reason", "verification gate"),
+                    })
+                    logger.warning(f"[orchestrator] 🚫 Blocked by verify gate: {topic_name}")
+                    continue
                 summary["researched"] += 1
 
                 # Step 2.5: Expansion (if enabled) — generates multiple angles from one research
@@ -560,9 +577,11 @@ class RealtimePipeline:
 
                     verdict = qa_meta.get("verdict", "KILL")
 
-                    if verdict == "PUBLISH":
+                    # PUBLISH_PENDING_REVIEW is the Magpie review-gated pass — it is a
+                    # SUCCESS (Deposit holds it), not a rewrite/kill. Treat it like PUBLISH.
+                    if verdict in ("PUBLISH", "PUBLISH_PENDING_REVIEW"):
                         summary["qa_passed"] += 1
-                        logger.info(f"[orchestrator] ✅ PUBLISH (score {qa_meta.get('score', '?')})")
+                        logger.info(f"[orchestrator] ✅ {verdict} (score {qa_meta.get('score', '?')})")
                         logger.info(f"[orchestrator] Feedback: {qa_meta.get('feedback', '')[:300]}")
                         break
 

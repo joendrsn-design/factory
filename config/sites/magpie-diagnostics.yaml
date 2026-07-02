@@ -1,0 +1,197 @@
+# ============================================================
+# SITE DNA: Magpie Diagnostics  (magpiedx.com)
+# ============================================================
+# Cancer-diagnostics education, organized into sections (one per cancer plus
+# two thematic Pulse pages). Content is sourced from the structured substrate
+# (substrate/<cancer>/*.json) via magpie_substrate.py (spokes) and
+# magpie_pillars.py (pillars), NOT from open-topic generation.
+#
+# Clinical/legal firewall: Magpie articles NEVER auto-publish. QA PUBLISH is
+# converted to PUBLISH_PENDING_REVIEW and held for pathologist sign-off
+# (Caleb). Also set sites.auto_publish_enabled = false for this site in Supabase.
+# ============================================================
+
+site_id: magpie-diagnostics
+site_name: Magpie Diagnostics
+domain: magpiedx.com
+tier: authority
+niche: medical-clinical
+sub_niche: Cancer diagnostics education — classification, biomarkers, and molecular testing
+
+audience:
+  profile: Informed patients, clinicians, and pathology/oncology trainees
+  expertise_level: mixed
+  intent: learn
+
+# --- VOICE: medical/educational profile ---
+voice:
+  tone: measured, evidence-based, educational
+  persona: an experienced diagnostician explaining the evidence clearly
+  pov: third_person_professional
+  reading_level: grade_13
+  style_notes: >
+    "The evidence suggests / studies show." Epistemic humility — name uncertainty
+    and contested areas. Original prose only. Frame therapy linkage as eligibility
+    for a drug CLASS, never patient-directed treatment advice. Population statistics
+    are not individual prognoses — say so. Cite primary/authoritative literature.
+  avoid:
+  - patient-directed treatment or screening recommendations
+  - reproducing NCCN or any guideline-vendor recommendation language
+  - naming NCCN
+  - invented numbers or unsourced claims
+  - hype, certainty the evidence does not support
+
+# --- SECTIONS (rendered as categories) ---
+categories:
+- slug: breast
+  label: Breast
+  description: Breast cancer classification, biomarkers, and molecular testing
+- slug: colon
+  label: Colon
+  description: Colorectal cancer classification, biomarkers, and molecular testing
+- slug: lung
+  label: Lung
+  description: Lung cancer classification, biomarkers, and molecular testing
+- slug: prostate
+  label: Prostate
+  description: Prostate cancer classification, grading, and biomarkers
+- slug: b-cell-lymphoma
+  label: B-cell Lymphoma
+  description: B-cell lymphoma classification, biomarkers, and molecular testing
+- slug: ovarian
+  label: Ovarian
+  description: Ovarian cancer histotypes, biomarkers, and molecular testing
+- slug: liquid-pulse
+  label: Liquid Pulse
+  description: Cross-cancer ctDNA / liquid-biopsy developments
+- slug: digital-pulse
+  label: Digital Pulse
+  description: Cross-cancer digital and computational pathology developments
+
+# --- MAGPIE SUBSTRATE-SOURCE CONFIG ---
+# Read by the Topic Generator's substrate-source mode and the review gate.
+magpie:
+  enabled: true
+  substrate_root: substrate
+  cancers: [breast, colon, lung, prostate, lymphoma, ovarian]
+  # QA PUBLISH -> PUBLISH_PENDING_REVIEW; Deposit holds until pathologist sign-off.
+  review_required: true
+  # cancer key -> section/category slug (lymphoma renders as "B-cell Lymphoma")
+  section_map:
+    breast: breast
+    colon: colon
+    lung: lung
+    prostate: prostate
+    lymphoma: b-cell-lymphoma
+    ovarian: ovarian
+
+# --- ARTICLE TYPES ---
+# Pillars (P1-P4) and spokes (A/B/C/D). Only types with enabled:true are emitted
+# into the pipeline; the rest are defined-but-held until their inputs/prompts land.
+article_types:
+# Pillars — active now (pure synthesis of existing substrate)
+- type_id: P2_classification_overview
+  label: H&E Diagnosis & Classification Overview
+  description: Per-cancer hub synthesizing all classification records; links down to Type A spokes.
+  word_count_min: 900
+  word_count_max: 1400
+  research_depth: moderate
+  citation_required: true
+  pillar: true
+  enabled: true
+- type_id: P3_biomarker_overview
+  label: Biomarker & Molecular Overview
+  description: Per-cancer hub synthesizing all biomarker records; links down to Type B spokes.
+  word_count_min: 900
+  word_count_max: 1400
+  research_depth: deep
+  citation_required: true
+  pillar: true
+  enabled: true
+# Pillars — held (data dependencies not yet wired)
+- type_id: P1_explainer
+  label: Cancer Explainer / Overview
+  description: Per-cancer front-door explainer; consumes <cancer>_epidemiology.json.
+  word_count_min: 900
+  word_count_max: 1400
+  research_depth: moderate
+  citation_required: true
+  pillar: true
+  enabled: true
+- type_id: P4_recent_developments
+  label: Recent Developments
+  description: Per-cancer freshness pillar. Research stage assembles external sources.
+  word_count_min: 800
+  word_count_max: 1300
+  research_depth: deep
+  citation_required: true
+  pillar: true
+  enabled: true
+# Spokes — held (await spoke write prompts)
+- type_id: A_classification
+  label: Subtype (classification spoke)
+  description: One article per classification record.
+  word_count_min: 700
+  word_count_max: 1100
+  research_depth: moderate
+  citation_required: true
+  enabled: true
+- type_id: B_biomarker
+  label: Biomarker (spoke)
+  description: One article per biomarker record. Always verify-gated (therapy linkage).
+  word_count_min: 700
+  word_count_max: 1100
+  research_depth: deep
+  citation_required: true
+  enabled: true
+# Thematic Pulse lines — held (separate cross-cancer assembly)
+- type_id: C_digital
+  label: Digital Pulse
+  description: Cross-cancer digital/computational pathology developments. Curated themes + external Research.
+  word_count_min: 800
+  word_count_max: 1300
+  research_depth: deep
+  citation_required: true
+  enabled: true
+- type_id: D_liquid
+  label: Liquid Pulse
+  description: Cross-cancer ctDNA / liquid-biopsy developments. External Research-driven.
+  word_count_min: 800
+  word_count_max: 1300
+  research_depth: deep
+  citation_required: true
+  enabled: true
+
+seo:
+  primary_keywords:
+  - cancer biomarkers
+  - tumor classification
+  - molecular pathology
+  keyword_clusters:
+  - - biomarker testing
+    - companion diagnostics
+  - - tumor classification
+    - histopathology
+  - - ctDNA
+    - liquid biopsy
+
+products:
+  enabled: false
+
+quality:
+  publish_score: 8.0
+  rewrite_score: 6.0
+  max_rewrites: 2
+
+research:
+  max_research_age_days: 21
+  shared_with:
+  - digital-pathology-today
+
+output:
+  obsidian_folder: sites/magpie-diagnostics/articles
+  frontmatter_template:
+    site: magpie-diagnostics
+    status: draft
+    author: Caleb Newton, MD
+  filename_pattern: YYYY-MM-DD-{slug}.md

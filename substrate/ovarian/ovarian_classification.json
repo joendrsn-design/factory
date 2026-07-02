@@ -1,0 +1,72 @@
+{
+  "dataset": "ovarian_classification",
+  "scope": "Ovarian carcinoma, WHO Classification of Female Genital Tumours 5th ed. (2020). Histotype is the classification spine; the five major epithelial histotypes are distinct diseases. Internal substrate only.",
+  "classification_records": [
+    {
+      "id": "OVA-CLS-0001",
+      "axis": "epithelial_histotype",
+      "entity": "High-grade serous carcinoma (HGSC)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Papillary/solid/glandular growth with marked nuclear atypia, high mitotic rate; often tubal (STIC) origin.",
+      "defining_features": ["high-grade nuclei", "frequent tubal/STIC origin", "psammoma bodies"],
+      "ihc_signature": ["WT1+", "p53 aberrant (mutant pattern: null or overexpression)", "PAX8+", "p16 block-positive"],
+      "molecular_signature": ["near-universal TP53 mutation", "BRCA1/2 and homologous-recombination deficiency in a large subset"],
+      "grading_system": "Binary high-grade (HGSC is by definition high-grade; low-grade serous is a separate entity)",
+      "clinical_note": "The most common and lethal ovarian carcinoma. WT1 + aberrant-p53 IHC defines it; HRD/BRCA status drives PARP-inhibitor therapy.",
+      "references": ["who5_femalegenital"]
+    },
+    {
+      "id": "OVA-CLS-0002",
+      "axis": "epithelial_histotype",
+      "entity": "Low-grade serous carcinoma (LGSC)",
+      "who5_status": "recognized_subtype",
+      "morphology": "Uniform low-grade nuclei, micropapillary/papillary architecture, low mitotic rate; arises from serous borderline tumor.",
+      "defining_features": ["low-grade uniform nuclei", "borderline-tumor association"],
+      "ihc_signature": ["WT1+", "p53 WILD-TYPE pattern (key vs HGSC)", "PAX8+"],
+      "molecular_signature": ["MAPK-pathway mutations (KRAS, BRAF, NRAS)", "TP53 wild-type"],
+      "grading_system": "Low-grade (distinct entity from HGSC, not a grade of it)",
+      "clinical_note": "Biologically distinct from HGSC: wild-type p53, MAPK-driven, more indolent but chemo-resistant; MEK-inhibitor relevance.",
+      "references": ["who5_femalegenital"]
+    },
+    {
+      "id": "OVA-CLS-0003",
+      "axis": "epithelial_histotype",
+      "entity": "Clear cell carcinoma",
+      "who5_status": "recognized_subtype",
+      "morphology": "Clear/hobnail cells, papillary/tubulocystic/solid patterns; endometriosis association.",
+      "defining_features": ["clear cytoplasm / hobnail cells", "endometriosis-associated"],
+      "ihc_signature": ["Napsin A+", "HNF1-beta+", "WT1-", "p53 usually wild-type", "ER often -"],
+      "molecular_signature": ["ARID1A loss", "PIK3CA mutations"],
+      "grading_system": "Considered high-grade by default; conventional grading not applied",
+      "clinical_note": "Endometriosis-associated; relatively chemo-resistant. Napsin A/HNF1-beta positive, WT1 negative — a clean IHC separation from serous.",
+      "references": ["who5_femalegenital"]
+    },
+    {
+      "id": "OVA-CLS-0004",
+      "axis": "epithelial_histotype",
+      "entity": "Endometrioid carcinoma",
+      "who5_status": "recognized_subtype",
+      "morphology": "Glandular architecture resembling endometrial endometrioid carcinoma; squamous morules; endometriosis association.",
+      "defining_features": ["endometrioid glands", "squamous differentiation", "endometriosis-associated"],
+      "ihc_signature": ["WT1- (usually)", "ER/PR+", "p53 wild-type (low-grade)"],
+      "molecular_signature": ["ARID1A, PTEN, CTNNB1, PIK3CA; mismatch-repair deficiency in a subset"],
+      "grading_system": "FIGO grade 1-3 (like uterine endometrioid)",
+      "clinical_note": "WT1-negative, ER/PR-positive; MMR testing relevant (Lynch association). Distinguish from serous by WT1/p53.",
+      "references": ["who5_femalegenital"]
+    },
+    {
+      "id": "OVA-CLS-0005",
+      "axis": "epithelial_histotype",
+      "entity": "Mucinous carcinoma",
+      "who5_status": "recognized_subtype",
+      "morphology": "Gastrointestinal-type mucinous epithelium; expansile vs infiltrative invasion; must exclude metastasis.",
+      "defining_features": ["GI-type mucinous epithelium", "expansile/infiltrative invasion"],
+      "ihc_signature": ["CK7+/CK20 variable", "PAX8 often -", "SATB2- (helps exclude lower-GI metastasis)", "WT1-"],
+      "molecular_signature": ["KRAS mutations", "HER2 amplification in a subset"],
+      "grading_system": "By architecture/atypia",
+      "clinical_note": "Primary ovarian mucinous carcinoma is rare; the critical task is excluding a GI/appendiceal or pancreaticobiliary metastasis (SATB2/CK20/CDX2 panel). HER2 testing relevant.",
+      "references": ["who5_femalegenital"]
+    }
+  ],
+  "notes": "Histotype IS the classification (five distinct diseases, not grades of one). The WT1 + p53 IHC pair is the master discriminator: HGSC (WT1+/p53 aberrant) vs LGSC (WT1+/p53 wild-type) vs clear cell & endometrioid (WT1-). Verify IHC patterns at write time."
+}

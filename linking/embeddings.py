@@ -17,12 +17,16 @@ load_dotenv()
 
 logger = logging.getLogger("article_factory.linking.embeddings")
 
-# OpenAI embedding model
-EMBEDDING_MODEL = "text-embedding-3-small"
-EMBEDDING_DIMENSIONS = 1536
+# OpenAI embedding model. Override EMBEDDING_MODEL / EMBEDDING_DIMENSIONS /
+# OPENAI_EMBEDDINGS_URL in the env to swap model or provider without code changes.
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
 
 # OpenAI API endpoint
-OPENAI_API_URL = "https://api.openai.com/v1/embeddings"
+OPENAI_API_URL = os.getenv("OPENAI_EMBEDDINGS_URL", "https://api.openai.com/v1/embeddings")
+
+# Quota/auth failures are logged once per process, then embeddings degrade quietly.
+_AUTH_WARNED = False
 
 
 class EmbeddingService:
@@ -82,7 +86,19 @@ class EmbeddingService:
             )
 
             if response.status_code != 200:
-                logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+                if response.status_code in (401, 403, 429):
+                    # Quota/auth problem — warn once, then degrade quietly. The
+                    # pipeline falls back to hub pages when embeddings are absent.
+                    global _AUTH_WARNED
+                    if not _AUTH_WARNED:
+                        logger.warning(
+                            f"Embeddings disabled: OpenAI returned {response.status_code} "
+                            "— check OPENAI_API_KEY quota/validity in factory/.env. "
+                            "Continuing without embeddings (semantic dedup/linking use hub pages)."
+                        )
+                        _AUTH_WARNED = True
+                else:
+                    logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
                 return None
 
             data = response.json()

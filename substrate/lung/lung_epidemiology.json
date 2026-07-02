@@ -1,0 +1,94 @@
+{
+  "dataset": "lung_epidemiology",
+  "source_policy": "SEER Cancer Stat Facts, ACS Cancer Facts & Figures 2026, USPSTF. Citable; refresh yearly. NCCN not used.",
+  "epidemiology": {
+    "incidence": {
+      "us_annual_new_cases": "~229,410 (lung and bronchus) projected for 2026",
+      "incidence_rate": "47.2 per 100,000/year, age-adjusted (2019-2023)",
+      "lifetime_risk": "~1 in 16 overall (varies sharply with smoking history)",
+      "rank_among_cancers": "3rd most common cancer diagnosis; ~10.8% of new cancer cases",
+      "trend": "Incidence falling ~1.9% per year (2014-2023), tracking declining tobacco use"
+    },
+    "mortality": {
+      "us_annual_deaths": "~124,990 projected for 2026 \u2014 the leading cause of cancer death",
+      "mortality_rate": "declining ~4.1% per year (2015-2024), the fastest drop among major cancers",
+      "five_year_survival_overall": "~28% (relative), historically low but improving",
+      "survival_by_stage": {
+        "localized": "~65%",
+        "regional": "~37%",
+        "distant": "~10%"
+      },
+      "trend": "Survival improving with low-dose CT screening, better staging, and targeted/immuno therapy; metastatic survival rose from ~2% to ~10%"
+    },
+    "risk_factors": [
+      {
+        "factor": "tobacco smoking",
+        "detail": "The dominant cause; risk scales with pack-years; secondhand smoke also contributes",
+        "modifiable": true
+      },
+      {
+        "factor": "radon exposure",
+        "detail": "Second leading cause; indoor radon",
+        "modifiable": true
+      },
+      {
+        "factor": "occupational/environmental carcinogens",
+        "detail": "Asbestos, diesel exhaust, arsenic, certain metals",
+        "modifiable": true
+      },
+      {
+        "factor": "age",
+        "detail": "Most frequently diagnosed at 65-74",
+        "modifiable": false
+      },
+      {
+        "factor": "prior lung disease / family history",
+        "detail": "COPD, pulmonary fibrosis; first-degree family history",
+        "modifiable": false
+      },
+      {
+        "factor": "never-smoker subset",
+        "detail": "A meaningful minority (often EGFR/ALK-driven adenocarcinoma), more common in women and East Asian ancestry",
+        "modifiable": false
+      }
+    ],
+    "screening": {
+      "modalities": [
+        "annual low-dose CT (LDCT)"
+      ],
+      "guideline_summary": "USPSTF recommends annual LDCT for adults 50-80 with a 20 pack-year history who currently smoke or quit within 15 years. Cite USPSTF; NCCN not used.",
+      "notes": "Screening uptake remains low relative to eligibility; eligibility criteria have broadened over time"
+    },
+    "presentation": "Frequently advanced at diagnosis; cough, hemoptysis, dyspnea, chest pain, weight loss, or incidental imaging finding"
+  },
+  "references": [
+    "seer_statfacts",
+    "acs_ff_2026",
+    "uspstf_lung_2021"
+  ],
+  "_provenance": "internal audit only",
+  "epidemiology_references": {
+    "seer_statfacts": {
+      "authors": "National Cancer Institute",
+      "title": "SEER Cancer Stat Facts",
+      "source": "surveillance.cancer.gov / seer.cancer.gov/statfacts",
+      "year": "2026 release (2019-2023 incidence, 2020-2024 mortality, 2016-2022 survival)",
+      "doi_or_id": "SEER*Explorer"
+    },
+    "acs_ff_2026": {
+      "authors": "Siegel RL, Kratzer TB, Wagle NS, Sung H, Jemal A.",
+      "title": "Cancer statistics, 2026",
+      "source": "CA Cancer J Clin",
+      "year": "2026",
+      "doi_or_id": "10.3322/caac.70043"
+    },
+    "uspstf_lung_2021": {
+      "authors": "US Preventive Services Task Force",
+      "title": "Lung Cancer: Screening (2021 Recommendation)",
+      "source": "uspreventiveservicestaskforce.org",
+      "year": "2021",
+      "doi_or_id": "USPSTF 2021"
+    }
+  },
+  "verification_status": "VERIFIED against SEER Cancer Stat Facts (2026 release) and ACS Cancer Facts & Figures 2026 via live search on build date; pathologist should still confirm before publication. Stats are the fastest-aging content \u2014 refresh yearly."
+}

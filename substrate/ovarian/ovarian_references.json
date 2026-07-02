@@ -1,0 +1,26 @@
+{
+  "references": {
+    "who5_femalegenital": {
+      "authors": "WHO Classification of Tumours Editorial Board",
+      "title": "Female Genital Tumours, 5th ed.",
+      "source": "IARC, Lyon",
+      "year": "2020",
+      "doi_or_id": "ISBN 978-92-832-4504-9"
+    },
+    "ovarian_parp_lit": {
+      "authors": "varies",
+      "title": "PARP inhibitors in BRCA-mutated ovarian cancer",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify (e.g., SOLO-1)"
+    },
+    "ovarian_hrd_lit": {
+      "authors": "varies",
+      "title": "HRD testing and PARP maintenance in ovarian cancer",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify (e.g., PAOLA-1, PRIMA)"
+    }
+  },
+  "verification_status": "UNVERIFIED \u2014 DOIs/trial attributions assembled from knowledge + search; pathologist confirms each before publication."
+}

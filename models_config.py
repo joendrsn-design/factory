@@ -13,10 +13,10 @@ MODELS = {
     "haiku": "claude-haiku-4-5-20251001",
 
     # Balanced model for research and QA
-    "sonnet": "claude-sonnet-4-5-20251022",
+    "sonnet": "claude-sonnet-4-6",
 
     # Best model for writing
-    "opus": "claude-opus-4-5-20251101",
+    "opus": "claude-opus-4-8",
 }
 
 # Default model assignments per module
@@ -29,14 +29,16 @@ MODULE_DEFAULTS = {
     "write": "opus",
     "preqa": "haiku",
     "qa": "sonnet",
+    "stats_driven": "haiku",
 }
 
 # Cost estimates per 1K tokens (input/output) in cents
 # Used for tracking and budgeting
+# Current per-MTok pricing (2026): Haiku 4.5 $1/$5, Sonnet 4.6 $3/$15, Opus 4.x $5/$25.
 COST_PER_1K_TOKENS = {
-    "haiku": {"input": 0.025, "output": 0.125},
+    "haiku": {"input": 0.1, "output": 0.5},
     "sonnet": {"input": 0.3, "output": 1.5},
-    "opus": {"input": 1.5, "output": 7.5},
+    "opus": {"input": 0.5, "output": 2.5},
 }
 
 

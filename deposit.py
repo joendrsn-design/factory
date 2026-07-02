@@ -37,6 +37,7 @@ Usage:
 
 import os
 import re
+import json
 import yaml
 import logging
 import argparse
@@ -50,6 +51,7 @@ load_dotenv()
 from site_loader import SiteLoader, SiteContext
 from artifacts import load_artifacts_from_dir
 from p4_gates import run_p4_gates, update_article_status
+from magpie_common import is_magpie
 
 logger = logging.getLogger("article_factory.deposit")
 
@@ -152,8 +154,9 @@ def publish_to_site_empire(payload: dict, timeout: int = 30) -> dict:
 
 # ── Disk Write (Primary or Fallback) ────────────────────────
 
-def build_disk_frontmatter(payload: dict, site_context: SiteContext) -> dict:
-    """Build frontmatter for disk write — mirrors what Site Empire stores."""
+def build_disk_frontmatter(payload: dict, site_context: SiteContext, held: bool = False) -> dict:
+    """Build frontmatter for disk write — mirrors what Site Empire stores.
+    held=True marks a pending-review article so a disk write can never go live."""
     fm = {}
     template = site_context.output.get("frontmatter_template", {}) or {}
     if template:
@@ -177,13 +180,19 @@ def build_disk_frontmatter(payload: dict, site_context: SiteContext) -> dict:
         "_factory": payload["_factory"],
     })
 
+    if held:
+        # Clinical/legal firewall on the disk path: never write a held article as live.
+        fm["draft"] = True
+        fm["status"] = "pending_review"
+
     return fm
 
 
-def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = False) -> Path:
+def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = False, held: bool = False) -> Path:
     """
     Write the article to disk.
     fallback=True writes to quarantine for retry; fallback=False writes to CONTENT_ROOT.
+    held=True marks the frontmatter pending_review/draft so it is never served live.
     """
     if fallback:
         content_root = os.environ.get("DEPOSIT_FAILED_DIR", "pipeline/failed_publishes")
@@ -198,7 +207,7 @@ def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = Fal
     output_path = Path(content_root) / site_id / "articles" / filename
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    fm = build_disk_frontmatter(payload, site_context)
+    fm = build_disk_frontmatter(payload, site_context, held=held)
     fm_str = yaml.dump(fm, default_flow_style=False, sort_keys=False, allow_unicode=True)
     content = f"---\n{fm_str}---\n\n{payload['body']}"
 
@@ -212,6 +221,8 @@ def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = Fal
 
 class DepositEngine:
 
+    LEDGER_PATH = "pipeline/magpie_links_ledger.json"
+
     def __init__(self, config_dir: str = "config/sites"):
         self.loader = SiteLoader(config_dir=config_dir)
         self.mode = os.environ.get("DEPOSIT_MODE", "api").lower()
@@ -219,6 +230,69 @@ class DepositEngine:
             logger.warning(f"[deposit] Unknown DEPOSIT_MODE '{self.mode}', defaulting to 'api'")
             self.mode = "api"
         logger.info(f"[deposit] Mode: {self.mode}")
+        self._mesh_cache: dict = {}
+        self._ledger = None
+
+    # ── Magpie internal-link mesh (lower priority feature) ───
+
+    def _load_ledger(self) -> dict:
+        """topic_id -> {slug, title} of already-deposited Magpie articles. Local ledger
+        so links resolve without a Supabase schema change; links fill in as the corpus
+        completes."""
+        if self._ledger is None:
+            try:
+                with open(self.LEDGER_PATH, encoding="utf-8") as f:
+                    self._ledger = json.load(f)
+            except Exception:
+                self._ledger = {}
+        return self._ledger
+
+    def _save_ledger(self) -> None:
+        if self._ledger is None:
+            return
+        Path(self.LEDGER_PATH).parent.mkdir(parents=True, exist_ok=True)
+        with open(self.LEDGER_PATH, "w", encoding="utf-8") as f:
+            json.dump(self._ledger, f, indent=2)
+
+    def _magpie_mesh(self, site_context) -> dict:
+        """Full substrate link mesh (spoke↔spoke + pillar↔spoke) for the site."""
+        sid = site_context.site_id
+        if sid in self._mesh_cache:
+            return self._mesh_cache[sid]
+        mesh: dict = {}
+        try:
+            from magpie_substrate import enumerate_all, build_link_mesh
+            from magpie_pillars import enumerate_pillars, pillar_spoke_mesh
+            mag = site_context.raw_config.get("magpie", {})
+            root, cancers = mag.get("substrate_root", "substrate"), mag.get("cancers", [])
+            spokes = enumerate_all(root, cancers)
+            pillars = enumerate_pillars(root, cancers)
+            mesh = {k: list(v) for k, v in build_link_mesh(spokes).items()}
+            for k, v in pillar_spoke_mesh(pillars, spokes).items():
+                mesh[k] = sorted(set(mesh.get(k, [])) | set(v))
+        except Exception as e:
+            logger.warning(f"[deposit] Magpie mesh unavailable: {e}")
+        self._mesh_cache[sid] = mesh
+        return mesh
+
+    def _inject_internal_links(self, body: str, metadata: dict, site_context) -> str:
+        """Append a Related section linking this article's mesh neighbors that are
+        already published (per the ledger). Skips not-yet-published links."""
+        if "## Related" in body:
+            return body
+        blob = metadata.get("magpie") or {}
+        tid = blob.get("topic_id") or metadata.get("topic_id")
+        if not tid:
+            return body
+        mesh, ledger = self._magpie_mesh(site_context), self._load_ledger()
+        linked = [lt for lt in mesh.get(tid, []) if lt in ledger]
+        if not linked:
+            return body
+        lines = ["", "## Related", ""]
+        for lt in linked:
+            e = ledger[lt]
+            lines.append(f"- [{e.get('title') or e.get('slug')}](/{e.get('slug')})")
+        return body.rstrip() + "\n" + "\n".join(lines) + "\n"
 
     def deposit(
         self,
@@ -239,6 +313,7 @@ class DepositEngine:
 
         summary = {
             "published": [],
+            "pending_review": [],
             "skipped_rewrite": [],
             "skipped_kill": [],
             "errors": [],
@@ -253,8 +328,10 @@ class DepositEngine:
             site_id = metadata.get("site_id", "")
             title = metadata.get("title", "Untitled")
 
-            # Skip non-PUBLISH verdicts
-            if verdict != "PUBLISH":
+            # PUBLISH publishes; PUBLISH_PENDING_REVIEW (Magpie firewall) is pushed but
+            # HELD — never auto-published — pending pathologist sign-off. Others skip.
+            pending_review = (verdict == "PUBLISH_PENDING_REVIEW")
+            if verdict not in ("PUBLISH", "PUBLISH_PENDING_REVIEW"):
                 if verdict == "REWRITE":
                     summary["skipped_rewrite"].append({
                         "article_id": article_id, "title": title, "score": metadata.get("score", 0),
@@ -273,17 +350,21 @@ class DepositEngine:
                 logger.error(f"[deposit] ❌ {title}: site config load failed: {e}")
                 continue
 
+            # Magpie: inject internal links to already-published mesh neighbors.
+            if is_magpie(metadata):
+                body = self._inject_internal_links(body, metadata, site_context)
+
             payload = build_publish_payload(metadata, body, site_context)
 
             if dry_run:
-                summary["published"].append({
+                summary["pending_review" if pending_review else "published"].append({
                     "article_id": article_id,
                     "title": title,
                     "site_id": site_id,
                     "slug": payload["slug"],
                     "score": payload["qa_score"],
                     "word_count": payload["word_count"],
-                    "action": "DRY_RUN",
+                    "action": "DRY_RUN_HELD" if pending_review else "DRY_RUN",
                     "dry_run": True,
                 })
                 logger.info(f"[deposit] DRY RUN: {title} ({site_id}/{payload['slug']})")
@@ -320,7 +401,12 @@ class DepositEngine:
                         record["p4_passed"] = p4_result.get("passed", False)
                         record["p4_failures"] = p4_result.get("failure_reasons", [])
 
-                        if p4_result.get("passed"):
+                        if pending_review:
+                            # Magpie firewall: never auto-publish. Leave it in
+                            # pending_review for the human review queue.
+                            record["final_status"] = "pending_review"
+                            logger.info(f"[deposit] 🔒 Held for review (Magpie): {site_id}/{payload['slug']}")
+                        elif p4_result.get("passed"):
                             logger.info(f"[deposit] ✅ P4 gates passed")
                             # Update status if P4 passed and LLM score is good
                             qa_score = payload.get("qa_score", 0)
@@ -369,7 +455,7 @@ class DepositEngine:
 
             if should_write_disk:
                 try:
-                    disk_path = write_to_disk(payload, site_context, fallback=is_fallback)
+                    disk_path = write_to_disk(payload, site_context, fallback=is_fallback, held=pending_review)
                     record["disk_path"] = str(disk_path)
                     if is_fallback:
                         record["fallback"] = True
@@ -380,11 +466,22 @@ class DepositEngine:
                     record["disk_error"] = str(e)
                     logger.error(f"[deposit] ❌ Disk write failed: {e}")
 
-            # Categorize result
+            # Record only LIVE (published) Magpie deposits in the link ledger. A held
+            # (pending_review) article isn't served yet, so linking to it would emit a
+            # dead /slug link. (Cross-linking held articles needs a published-state source,
+            # e.g. a Supabase query post-approval — not the deposit-time local ledger.)
+            success = api_succeeded or (self.mode == "disk" and "disk_path" in record)
+            if success and is_magpie(metadata) and not pending_review:
+                tid = (metadata.get("magpie") or {}).get("topic_id") or metadata.get("topic_id")
+                if tid:
+                    self._load_ledger()[tid] = {"slug": payload["slug"], "title": payload["title"]}
+
+            # Categorize result (pending_review held separately from published)
+            done_bucket = "pending_review" if pending_review else "published"
             if api_succeeded:
-                summary["published"].append(record)
+                summary[done_bucket].append(record)
             elif self.mode == "disk" and "disk_path" in record:
-                summary["published"].append(record)
+                summary[done_bucket].append(record)
             elif "disk_path" in record:
                 # API failed but quarantined successfully
                 summary["fallback_to_disk"].append(record)
@@ -396,6 +493,7 @@ class DepositEngine:
                     "error": api_error or "Both API and disk failed",
                 })
 
+        self._save_ledger()
         return summary
 
     def generate_report(self, summary: dict) -> str:
@@ -417,6 +515,7 @@ class DepositEngine:
         if auto_published:
             lines.append(f"**Auto-published:** {auto_published}")
 
+        lines.append(f"**Pending review (Magpie, held):** {len(summary.get('pending_review', []))}")
         lines.append(f"**Quarantined (API failed):** {len(summary.get('fallback_to_disk', []))}")
         lines.append(f"**Skipped (rewrite):** {len(summary['skipped_rewrite'])}")
         lines.append(f"**Skipped (kill):** {len(summary['skipped_kill'])}")

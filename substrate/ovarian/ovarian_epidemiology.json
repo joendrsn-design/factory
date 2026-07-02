@@ -1,0 +1,95 @@
+{
+  "dataset": "ovarian_epidemiology",
+  "source_policy": "SEER Cancer Stat Facts, ACS Cancer Facts & Figures 2026, USPSTF. Citable; refresh yearly. NCCN not used.",
+  "epidemiology": {
+    "incidence": {
+      "us_annual_new_cases": "~21,010 projected for 2026",
+      "incidence_rate": "10.4 per 100,000 women/year, age-adjusted (2019-2023)",
+      "lifetime_risk": "~1.1% of women (about 1 in 91)",
+      "rank_among_cancers": "~1.0% of new cancer cases; relatively rare but disproportionately lethal",
+      "trend": "Incidence declining ~1%/yr; mortality falling faster (~2.7%/yr), reflecting earlier-stage shift and survival gains"
+    },
+    "mortality": {
+      "us_annual_deaths": "~12,450 projected for 2026 \u2014 the 14th leading cause of cancer death; deadliest gynecologic cancer",
+      "mortality_rate": "5.7 per 100,000 women/year (2020-2024)",
+      "five_year_survival_overall": "~51% (relative), limited by late-stage diagnosis",
+      "survival_by_stage": {
+        "localized": "~93%",
+        "regional": "~75%",
+        "distant": "~31%"
+      },
+      "trend": "~49% diagnosed at distant stage (down from ~57% a decade earlier); survival rises sharply with earlier detection but no effective general-population screening exists"
+    },
+    "risk_factors": [
+      {
+        "factor": "germline BRCA1/2 and HRD",
+        "detail": "Major hereditary risk; also predicts PARP-inhibitor benefit",
+        "modifiable": false
+      },
+      {
+        "factor": "Lynch syndrome",
+        "detail": "MMR-deficiency syndromes raise risk (esp. endometrioid/clear cell)",
+        "modifiable": false
+      },
+      {
+        "factor": "family history",
+        "detail": "First-degree relatives with ovarian/breast cancer",
+        "modifiable": false
+      },
+      {
+        "factor": "age / reproductive history",
+        "detail": "Most diagnosed at 55-64; nulliparity, early menarche/late menopause",
+        "modifiable": false
+      },
+      {
+        "factor": "endometriosis",
+        "detail": "Associated with clear cell and endometrioid histotypes",
+        "modifiable": false
+      },
+      {
+        "factor": "protective factors",
+        "detail": "Parity, breastfeeding, oral contraceptive use, tubal ligation/salpingectomy reduce risk",
+        "modifiable": true
+      }
+    ],
+    "screening": {
+      "modalities": [
+        "no recommended general-population screening",
+        "risk-reducing salpingo-oophorectomy for high-risk carriers"
+      ],
+      "guideline_summary": "USPSTF recommends AGAINST screening average-risk asymptomatic women (CA-125/transvaginal ultrasound do not reduce mortality and cause harm). High-risk (e.g., BRCA) management is individualized, including risk-reducing surgery. Cite USPSTF; NCCN not used.",
+      "notes": "Absence of effective screening is central to the late-stage-diagnosis problem; many high-grade serous cancers arise from the fallopian tube (STIC)"
+    },
+    "presentation": "Often vague and late: bloating, pelvic/abdominal pain, early satiety, urinary urgency; frequently advanced at diagnosis"
+  },
+  "references": [
+    "seer_statfacts",
+    "acs_ff_2026",
+    "uspstf_ovarian_2018"
+  ],
+  "_provenance": "internal audit only",
+  "epidemiology_references": {
+    "seer_statfacts": {
+      "authors": "National Cancer Institute",
+      "title": "SEER Cancer Stat Facts",
+      "source": "surveillance.cancer.gov / seer.cancer.gov/statfacts",
+      "year": "2026 release (2019-2023 incidence, 2020-2024 mortality, 2016-2022 survival)",
+      "doi_or_id": "SEER*Explorer"
+    },
+    "acs_ff_2026": {
+      "authors": "Siegel RL, Kratzer TB, Wagle NS, Sung H, Jemal A.",
+      "title": "Cancer statistics, 2026",
+      "source": "CA Cancer J Clin",
+      "year": "2026",
+      "doi_or_id": "10.3322/caac.70043"
+    },
+    "uspstf_ovarian_2018": {
+      "authors": "US Preventive Services Task Force",
+      "title": "Ovarian Cancer: Screening (2018 Recommendation)",
+      "source": "uspreventiveservicestaskforce.org",
+      "year": "2018",
+      "doi_or_id": "USPSTF 2018"
+    }
+  },
+  "verification_status": "VERIFIED against SEER Cancer Stat Facts (2026 release) and ACS Cancer Facts & Figures 2026 via live search on build date; pathologist should still confirm before publication. Stats are the fastest-aging content \u2014 refresh yearly."
+}

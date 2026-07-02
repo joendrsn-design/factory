@@ -1,0 +1,85 @@
+{
+  "dataset": "colon_biomarkers",
+  "scope": "Colorectal carcinoma predictive/prognostic biomarkers. Internal substrate only.",
+  "biomarker_records": [
+    {
+      "id": "CRC-BIO-0001",
+      "biomarker": "Mismatch repair / MSI (dMMR/MSI-H)",
+      "purpose": "both",
+      "assay": ["IHC (MLH1, PMS2, MSH2, MSH6)", "PCR/NGS (MSI)"],
+      "specimen": "FFPE",
+      "scoring": "Loss of one or more MMR proteins by IHC; MSI-high by molecular testing. Universal testing recommended on all colorectal cancers.",
+      "result_states": ["dMMR / MSI-H", "pMMR / MSS"],
+      "therapy_linkage": "MSI-H/dMMR gates immune checkpoint inhibitor therapy (including first-line in metastatic disease) and identifies Lynch syndrome candidates (esp. with MLH1/PMS2 loss prompting BRAF/MLH1-methylation reflex).",
+      "companion_dx_basis": "Checkpoint inhibitor trials in dMMR CRC; Lynch screening guidelines",
+      "references": ["who5_digestive", "crc_mmr_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "CRC-BIO-0002",
+      "biomarker": "KRAS / NRAS mutation (RAS)",
+      "purpose": "predictive",
+      "assay": ["NGS", "PCR", "ctDNA"],
+      "specimen": "FFPE / plasma ctDNA",
+      "scoring": "Expanded RAS testing (KRAS and NRAS exons 2/3/4).",
+      "result_states": ["RAS-mutant", "RAS wild-type"],
+      "therapy_linkage": "RAS mutation predicts LACK of benefit from anti-EGFR antibodies (cetuximab/panitumumab); only RAS wild-type tumors are candidates.",
+      "companion_dx_basis": "Anti-EGFR therapy trials / FDA companion dx",
+      "references": ["crc_ras_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "CRC-BIO-0003",
+      "biomarker": "BRAF V600E mutation",
+      "purpose": "both",
+      "assay": ["NGS", "PCR", "IHC (VE1)"],
+      "specimen": "FFPE / ctDNA",
+      "scoring": "V600E present vs absent.",
+      "result_states": ["BRAF V600E", "wild-type"],
+      "therapy_linkage": "Adverse prognosis; gates BRAF-inhibitor-based combination (with anti-EGFR) in metastatic disease. Also used as a reflex (with MLH1 methylation) to triage MLH1-loss tumors away from Lynch.",
+      "companion_dx_basis": "BRAF combo trials in CRC",
+      "references": ["crc_braf_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "CRC-BIO-0004",
+      "biomarker": "HER2 (ERBB2) amplification/overexpression",
+      "purpose": "predictive",
+      "assay": ["IHC", "ISH", "NGS"],
+      "specimen": "FFPE",
+      "scoring": "CRC-specific HER2 scoring criteria (distinct from breast/gastric).",
+      "result_states": ["HER2 positive", "negative"],
+      "therapy_linkage": "HER2-amplified RAS/BRAF wild-type metastatic CRC gates HER2-directed therapy.",
+      "companion_dx_basis": "HER2-targeted CRC trials",
+      "references": ["crc_her2_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "CRC-BIO-0005",
+      "biomarker": "NTRK fusion",
+      "purpose": "predictive",
+      "assay": ["pan-TRK IHC (screen)", "NGS"],
+      "specimen": "FFPE",
+      "scoring": "Fusion present vs absent; enriched in MSI-H/MLH1-methylated tumors.",
+      "result_states": ["NTRK fusion present", "absent"],
+      "therapy_linkage": "Gates tumor-agnostic TRK inhibitors; rare but actionable.",
+      "companion_dx_basis": "Tumor-agnostic TRK approvals",
+      "references": ["crc_ntrk_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "CRC-BIO-0006",
+      "biomarker": "ctDNA for minimal residual disease (MRD)",
+      "purpose": "prognostic",
+      "assay": ["ctDNA (tumor-informed or tumor-agnostic NGS)"],
+      "specimen": "plasma",
+      "scoring": "Post-operative ctDNA detectable vs undetectable.",
+      "result_states": ["ctDNA positive (MRD+)", "ctDNA negative"],
+      "therapy_linkage": "Post-surgical ctDNA positivity is a strong recurrence predictor and is being used to guide adjuvant-therapy decisions (active trial area). A core Liquid Pulse topic.",
+      "companion_dx_basis": "MRD ctDNA studies (e.g., DYNAMIC and successors)",
+      "references": ["crc_mrd_lit"],
+      "_provenance": "internal"
+    }
+  ],
+  "notes": "Universal MMR/MSI testing + expanded RAS + BRAF is the core CRC panel. The MLH1-loss -> BRAF V600E / MLH1-methylation reflex is a high-value diagnostic-algorithm article. ctDNA MRD is the strongest Liquid Pulse crossover among the six cancers. Verify therapy linkages at write time."
+}

@@ -27,6 +27,65 @@ from typing import Optional
 logger = logging.getLogger("article_factory.artifacts")
 
 
+# ── LLM JSON Extraction ─────────────────────────────────────
+# Shared by planning.py and research.py. LLM responses wrap JSON in ```json
+# fences, prepend prose, or omit fences entirely; these recover the JSON object
+# and (for two-part responses) the surrounding prose.
+
+_JSON_DECODER = json.JSONDecoder()
+
+
+def extract_json(text: str) -> Optional[dict]:
+    """Return the first JSON object in an LLM response, or None if there isn't one.
+
+    Tolerates ```json / ``` fences (including single-line / missing-newline
+    variants) and surrounding prose. The raw_decode scan respects string
+    contents, so a "{" or "}" inside a value won't derail extraction.
+    """
+    if not text:
+        return None
+    text = text.strip()
+    # 1. Fenced code blocks: ```json ... ``` first, then a bare ``` ... ```.
+    for pat in (r"```json\s*(.*?)```", r"```\s*(.*?)```"):
+        for m in re.finditer(pat, text, re.DOTALL):
+            try:
+                obj = json.loads(m.group(1).strip())
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict):
+                return obj
+    # 2. Raw-decode any JSON object found in the text.
+    idx = text.find("{")
+    while idx != -1:
+        try:
+            obj, _ = _JSON_DECODER.raw_decode(text, idx)
+            if isinstance(obj, dict):
+                return obj
+        except json.JSONDecodeError:
+            pass
+        idx = text.find("{", idx + 1)
+    return None
+
+
+def strip_json_blocks(text: str) -> str:
+    """Remove fenced JSON blocks and a leading unfenced JSON object from an LLM
+    response, leaving the prose (e.g. the PART 2 research brief)."""
+    if not text:
+        return ""
+    # Remove fenced metadata block(s): ```json ... ``` or a bare ``` { ... } ```.
+    cleaned = re.sub(r"```json\s*.*?```", "", text, flags=re.DOTALL)
+    cleaned = re.sub(r"```\s*\{.*?\}\s*```", "", cleaned, flags=re.DOTALL).strip()
+    # Remove a leading unfenced JSON object (optionally behind a "PART 1:" header).
+    m = re.match(r"\s*(?:PART\s*1\s*:?\s*)?\{", cleaned, flags=re.IGNORECASE)
+    if m:
+        try:
+            _, end = _JSON_DECODER.raw_decode(cleaned, m.end() - 1)
+            cleaned = cleaned[end:].strip()
+        except json.JSONDecodeError:
+            pass
+    return cleaned
+
+
 # ── ID Generation ───────────────────────────────────────────
 
 def new_run_id() -> str:

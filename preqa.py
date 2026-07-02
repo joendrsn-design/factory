@@ -27,6 +27,7 @@ import logging
 from typing import Optional
 
 from base_module import BaseModule
+from models_config import get_model
 from site_loader import SiteContext
 from artifacts import base_metadata
 
@@ -38,7 +39,7 @@ logger = logging.getLogger("article_factory.preqa")
 class PreQAModule(BaseModule):
 
     module_name = "preqa"
-    model = "claude-haiku-4-5-20251001"  # Cheap! ~0.5¢ per article
+    model = get_model("preqa")  # Haiku — cheap, ~0.5¢ per article
     input_module = "write"
     max_retries = 1
     default_max_tokens = 512  # Very short responses needed

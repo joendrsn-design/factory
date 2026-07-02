@@ -1,0 +1,54 @@
+{
+  "references": {
+    "who5_thoracic": {
+      "authors": "WHO Classification of Tumours Editorial Board",
+      "title": "Thoracic Tumours, 5th ed.",
+      "source": "IARC, Lyon",
+      "year": "2021",
+      "doi_or_id": "ISBN 978-92-832-4506-3"
+    },
+    "iaslc_grading": {
+      "authors": "Moreira AL, Ocampo PSS, Xia Y, et al.",
+      "title": "A Grading System for Invasive Pulmonary Adenocarcinoma: IASLC Pathology Committee",
+      "source": "J Thorac Oncol",
+      "year": "2020",
+      "doi_or_id": "10.1016/j.jtho.2020.06.001"
+    },
+    "lung_targeted_2025": {
+      "authors": "Review",
+      "title": "Lung Cancer: Targeted Therapy in 2025",
+      "source": "Curr Oncol",
+      "year": "2025",
+      "doi_or_id": "PMC11941068 \u2014 verify"
+    },
+    "kras_g12c_onclive": {
+      "authors": "FDA / trial data",
+      "title": "KRAS G12C inhibitor approvals (sotorasib 2021, adagrasib 2022)",
+      "source": "FDA",
+      "year": "2021-2022",
+      "doi_or_id": "verify primary trial cites (CodeBreaK, KRYSTAL)"
+    },
+    "nsclc_2025_approvals": {
+      "authors": "Review",
+      "title": "Seven new FDA approvals in 2025 across molecular targets in NSCLC",
+      "source": "review",
+      "year": "2025",
+      "doi_or_id": "PMC12873738 \u2014 verify; covers telisotuzumab vedotin, Dato-DXd"
+    },
+    "cancerbiomed_2025": {
+      "authors": "Review",
+      "title": "Research progress in oncogene-addicted NSCLC",
+      "source": "Cancer Biol Med",
+      "year": "2025",
+      "doi_or_id": "10.20892/j.issn.2095-3941.2025.0153 \u2014 verify"
+    },
+    "nsclc_mgmt_2025": {
+      "authors": "Review",
+      "title": "Update 2025: Management of NSCLC",
+      "source": "review",
+      "year": "2025",
+      "doi_or_id": "PMC11937135 \u2014 verify"
+    }
+  },
+  "verification_status": "UNVERIFIED \u2014 DOIs/trial attributions assembled from knowledge + search; pathologist confirms each before publication."
+}

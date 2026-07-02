@@ -1,0 +1,55 @@
+{
+  "purpose": "Curated editorial themes for Digital Pulse (Type C). Unlike Liquid Pulse (D), which the substrate reader derives from ctDNA-capable biomarker records, Digital Pulse themes are NOT derivable from the substrate — they are external developments (a cleared algorithm, a validation study, a method) that we choose to cover. This file is the input the Type C branch of enumerate_thematic reads.",
+  "schema": {
+    "theme": "the editorial subject of one Digital Pulse article",
+    "substrate_markers": "marker/morphology names this theme grounds to, for cross-cancer linking (matched against ihc_signature / molecular_signature / biomarker fields in the substrate)",
+    "cancers": "which cancer substrates this theme touches",
+    "status_hint": "editorial seed only; the Research stage confirms current status at write time",
+    "notes": "curation note / why this is a Digital Pulse theme"
+  },
+  "policy": "status_hint is an editorial seed, NOT a verified fact. The Type C Research prompt independently confirms regulatory status, dates, and validation evidence at write time. Refresh this list as the field moves; it is editorially maintained, not auto-generated. NCCN not used.",
+  "themes": [
+    {
+      "theme": "FDA-cleared multimodal AI prognostic tools in localized prostate cancer",
+      "substrate_markers": ["ISUP Grade Group", "Gleason architecture", "cribriform pattern 4", "intraductal carcinoma"],
+      "cancers": ["prostate"],
+      "status_hint": "first AI SaMD De Novo authorization in digital pathology reported 2025; verify identifier and indication at write time",
+      "notes": "Anchors the Digital Pulse 'computational prognostication' story; connects to the prostate grading-as-spine substrate. Ties directly to the Digital Pathology Today editorial world."
+    },
+    {
+      "theme": "AI-based risk stratification entering HR+/HER2- early breast cancer",
+      "substrate_markers": ["ER", "PR", "HER2 (ERBB2)", "Ki-67 proliferation index", "21-gene recurrence score"],
+      "cancers": ["breast"],
+      "status_hint": "FDA clearance of a digital-pathology breast risk-stratification tool reported 2026; verify exact indication and date",
+      "notes": "Positions computational risk scoring alongside the existing multigene-assay substrate (Oncotype/MammaPrint). Strong reader interest: where does an image-based score sit relative to genomic assays?"
+    },
+    {
+      "theme": "Computational HER2 image analysis and the HER2-low/ultralow reproducibility problem",
+      "substrate_markers": ["HER2 (ERBB2)"],
+      "cancers": ["breast"],
+      "status_hint": "active validation literature through 2024-2025; mostly investigational/assistive, not autonomous; verify",
+      "notes": "Directly grounded in the HER2 substrate record and the ultralow reproducibility issue from the sample article. The diagnostic-problem framing (can image analysis make the 0-vs-ultralow call reproducible?) is the spine."
+    },
+    {
+      "theme": "AI-assisted cancer detection as a screening/pre-screen layer in prostate and breast biopsies",
+      "substrate_markers": ["acinar adenocarcinoma", "basal markers (p63, HMWCK)", "AMACR/P504S", "DCIS", "IBC-NST"],
+      "cancers": ["prostate", "breast"],
+      "status_hint": "first-of-kind CAD detection tools FDA-cleared since 2021; verify current scope",
+      "notes": "The 'AI surfaces high-risk regions before the pathologist opens the slide' workflow story. Connects to the diagnostic-IHC-triad substrate (prostate) and in-situ/invasive detection (breast)."
+    },
+    {
+      "theme": "Computational Ki-67 quantification: where image analysis helps and where it doesn't",
+      "substrate_markers": ["Ki-67 proliferation index"],
+      "cancers": ["breast", "lung", "lymphoma", "prostate"],
+      "status_hint": "assistive/quantitative; standardization remains the open problem; verify",
+      "notes": "A genuinely cross-cancer theme — Ki-67 appears in four substrates. The Digital Pulse angle is reproducibility and the International Ki-67 Working Group standardization gap."
+    },
+    {
+      "theme": "FDA regulatory frameworks for AI/ML Software as a Medical Device in pathology",
+      "substrate_markers": [],
+      "cancers": ["breast", "lung", "colon", "prostate", "ovarian", "lymphoma"],
+      "status_hint": "FDA draft/final guidance on AI-enabled devices issued 2025; verify",
+      "notes": "The meta-theme: how the clearance pathway itself works (De Novo, 510(k), lifecycle management). Grounds the whole Digital Pulse line and explains why so few tools are cleared. No specific marker — it's the regulatory backbone piece."
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "references": {
+    "who5_digestive": {
+      "authors": "WHO Classification of Tumours Editorial Board",
+      "title": "Digestive System Tumours, 5th ed.",
+      "source": "IARC, Lyon",
+      "year": "2019",
+      "doi_or_id": "ISBN 978-92-832-4499-8"
+    },
+    "crc_mmr_lit": {
+      "authors": "varies",
+      "title": "dMMR/MSI testing and immunotherapy in colorectal cancer",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify (e.g., KEYNOTE-177)"
+    },
+    "crc_ras_lit": {
+      "authors": "varies",
+      "title": "Expanded RAS testing and anti-EGFR therapy",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify (e.g., PRIME, CRYSTAL)"
+    },
+    "crc_braf_lit": {
+      "authors": "varies",
+      "title": "BRAF V600E and combination therapy in mCRC",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify (e.g., BEACON)"
+    },
+    "crc_her2_lit": {
+      "authors": "varies",
+      "title": "HER2-amplified metastatic colorectal cancer",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify (e.g., HERACLES, MOUNTAINEER)"
+    },
+    "crc_ntrk_lit": {
+      "authors": "varies",
+      "title": "NTRK fusions in colorectal cancer",
+      "source": "primary literature",
+      "year": "current",
+      "doi_or_id": "verify"
+    },
+    "crc_mrd_lit": {
+      "authors": "Tie J, et al.",
+      "title": "ctDNA-guided adjuvant therapy in colon cancer (DYNAMIC)",
+      "source": "N Engl J Med",
+      "year": "2022",
+      "doi_or_id": "10.1056/NEJMoa2200075 \u2014 verify"
+    }
+  },
+  "verification_status": "UNVERIFIED \u2014 DOIs/trial attributions assembled from knowledge + search; pathologist confirms each before publication."
+}

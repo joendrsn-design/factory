@@ -1,0 +1,85 @@
+{
+  "dataset": "prostate_biomarkers",
+  "scope": "Prostate carcinoma predictive/prognostic biomarkers. Internal substrate only.",
+  "biomarker_records": [
+    {
+      "id": "PRO-BIO-0001",
+      "biomarker": "Diagnostic IHC triad (basal markers / AMACR / NKX3.1)",
+      "purpose": "prognostic",
+      "assay": ["IHC"],
+      "specimen": "FFPE",
+      "scoring": "Basal markers (p63, HMWCK) absent in invasive carcinoma; AMACR/P504S positive; NKX3.1 confirms prostatic lineage.",
+      "result_states": ["malignant pattern (basal-, AMACR+)", "benign (basal+)"],
+      "therapy_linkage": "Diagnostic, not therapy-gating; confirms carcinoma on small foci and establishes prostatic origin in metastases.",
+      "companion_dx_basis": "Diagnostic surgical pathology standard",
+      "references": ["who5_urogenital"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "PRO-BIO-0002",
+      "biomarker": "Germline / somatic HRR alterations (BRCA2, BRCA1, ATM, others)",
+      "purpose": "predictive",
+      "assay": ["germline sequencing", "somatic NGS (tissue or ctDNA)"],
+      "specimen": "blood (germline) + FFPE/plasma (somatic)",
+      "scoring": "Pathogenic HRR-gene alteration present vs absent; BRCA2 most actionable.",
+      "result_states": ["HRR/BRCA alteration present", "absent"],
+      "therapy_linkage": "Gates PARP inhibitor therapy in metastatic castration-resistant prostate cancer (some indications combined with androgen-receptor-pathway inhibitors); BRCA2 also informs prognosis and screening.",
+      "companion_dx_basis": "PARP-inhibitor trials in mCRPC / FDA companion dx",
+      "references": ["prostate_parp_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "PRO-BIO-0003",
+      "biomarker": "Mismatch repair / MSI (dMMR/MSI-H)",
+      "purpose": "predictive",
+      "assay": ["IHC (MMR proteins)", "PCR/NGS (MSI)"],
+      "specimen": "FFPE",
+      "scoring": "MMR loss / MSI-high (less common in prostate than CRC).",
+      "result_states": ["dMMR/MSI-H", "pMMR/MSS"],
+      "therapy_linkage": "Gates tumor-agnostic checkpoint inhibitor therapy in the minority of MSI-H prostate cancers.",
+      "companion_dx_basis": "Tumor-agnostic pembrolizumab approval",
+      "references": ["prostate_msi_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "PRO-BIO-0004",
+      "biomarker": "PTEN loss",
+      "purpose": "prognostic",
+      "assay": ["IHC", "FISH/NGS"],
+      "specimen": "FFPE",
+      "scoring": "Loss of PTEN expression.",
+      "result_states": ["PTEN loss", "PTEN intact"],
+      "therapy_linkage": "Adverse prognostic marker; associated with aggressive disease and informs trial eligibility (PI3K/AKT pathway).",
+      "companion_dx_basis": "Prognostic literature",
+      "references": ["who5_urogenital"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "PRO-BIO-0005",
+      "biomarker": "PSMA expression (theranostic)",
+      "purpose": "predictive",
+      "assay": ["PSMA PET imaging", "IHC (research/adjunct)"],
+      "specimen": "in vivo PET / FFPE",
+      "scoring": "PSMA-avid disease on PET.",
+      "result_states": ["PSMA-positive", "PSMA-low/negative"],
+      "therapy_linkage": "PSMA positivity gates PSMA-targeted radioligand therapy in mCRPC and guides PSMA PET staging.",
+      "companion_dx_basis": "PSMA radioligand therapy approvals / PSMA PET",
+      "references": ["prostate_psma_lit"],
+      "_provenance": "internal"
+    },
+    {
+      "id": "PRO-BIO-0006",
+      "biomarker": "TMPRSS2::ERG fusion / ERG IHC",
+      "purpose": "prognostic",
+      "assay": ["IHC (ERG)", "FISH/NGS"],
+      "specimen": "FFPE",
+      "scoring": "ERG expression as surrogate for the fusion (~50% of prostate cancers).",
+      "result_states": ["ERG positive (fusion)", "ERG negative"],
+      "therapy_linkage": "Lineage/diagnostic marker; ERG positivity confirms neoplastic prostatic epithelium. Not currently therapy-gating but biologically defining.",
+      "companion_dx_basis": "Molecular pathology literature",
+      "references": ["who5_urogenital"],
+      "_provenance": "internal"
+    }
+  ],
+  "notes": "HRR/BRCA (PARP) and PSMA (radioligand) are the therapy-gating headliners; the IHC triad and ERG are diagnostic/lineage. ctDNA-based somatic HRR testing is a Liquid Pulse crossover. Verify PARP and PSMA indications at write time — both are active areas."
+}
