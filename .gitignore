@@ -1,5 +1,12 @@
-# Environment
+# Environment & secrets
 .env
+.env.*
+secrets/
+*service-account*.json
+*credentials*.json
+*token*
+*.pem
+*.key
 
 # Pipeline artifacts (generated content)
 pipeline/topics/*
