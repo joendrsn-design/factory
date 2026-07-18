@@ -3,7 +3,7 @@ site_name: Daily Masterpiece
 domain: dailymasterpiece.com
 tier: standard
 niche: daily-wisdom
-template: minimal-daily
+template: daily-page
 categories:
 - slug: reflections
   label: Reflections
