@@ -329,6 +329,12 @@ class ResearchVault:
 
 # ── Research Module ─────────────────────────────────────────
 
+# Used when a site config does not pin a depth for an article type. It must be
+# the same value everywhere: search volume and output validation are calibrated
+# from this, and they only agree if they start from the same default.
+DEFAULT_RESEARCH_DEPTH = "moderate"
+
+
 class ResearchModule(BaseModule):
 
     module_name = "research"
@@ -342,6 +348,26 @@ class ResearchModule(BaseModule):
         self.vault = ResearchVault(vault_dir=vault_dir)
         self.search_provider = get_search_provider()
         logger.info(f"[research] Search provider: {self.search_provider.__class__.__name__}")
+
+    def resolve_research_depth(self, metadata: dict, site_context: SiteContext) -> str:
+        """The configured research depth for this article's type.
+
+        The site config is the single source of truth. Two things are derived
+        from this value and MUST agree: how many queries/results _do_web_search
+        fetches, and the minimum source and finding counts validate_output
+        enforces.
+
+        They previously disagreed. Search read the depth from the article type
+        while validation read it from the artifact metadata, which never
+        carried the key and so always fell back to "moderate". A site
+        configured `shallow` therefore fetched 3 sources and was then judged
+        against moderate's minimum of 5 — every run failed with
+        "Only 3 sources for moderate research (min 5)".
+        """
+        article_type = site_context.get_article_type(metadata.get("article_type", ""))
+        if article_type:
+            return article_type.get("research_depth", DEFAULT_RESEARCH_DEPTH)
+        return DEFAULT_RESEARCH_DEPTH
 
     # ── Core Processing ─────────────────────────────────────
 
@@ -364,7 +390,6 @@ class ResearchModule(BaseModule):
 
         topic = metadata.get("topic", "")
         site_id = metadata.get("site_id", "")
-        article_type_id = metadata.get("article_type", "")
 
         # Get research config from site context
         research_cfg = site_context.research
@@ -385,10 +410,7 @@ class ResearchModule(BaseModule):
             return cached_meta, cached_body
 
         # 2. WEB SEARCH
-        article_type = site_context.get_article_type(article_type_id)
-        research_depth = "moderate"
-        if article_type:
-            research_depth = article_type.get("research_depth", "moderate")
+        research_depth = self.resolve_research_depth(metadata, site_context)
 
         search_results = self._do_web_search(topic, research_depth, site_context)
 
@@ -717,10 +739,9 @@ class ResearchModule(BaseModule):
 
         article_type_id = metadata.get("article_type", "")
         article_type = site_context.get_article_type(article_type_id)
-        research_depth = "moderate"
+        research_depth = self.resolve_research_depth(metadata, site_context)
         citation_required = False
         if article_type:
-            research_depth = article_type.get("research_depth", "moderate")
             citation_required = article_type.get("citation_required", True)
 
         audience = site_context.audience
@@ -1047,8 +1068,11 @@ The brief should be detailed enough that a writer can produce a full article wit
             site_id=input_metadata.get("site_id", ""),
             article_type=input_metadata.get("article_type", ""),
             topic=input_metadata.get("topic", ""),
-            research_depth=json_data.get("research_depth",
-                input_metadata.get("research_depth", "moderate")),
+            # Authoritative, from the site config — NOT json_data. The model
+            # reporting its own depth cannot be allowed to set the bar its
+            # output is then measured against, and the topic artifact upstream
+            # does not carry the key at all.
+            research_depth=self.resolve_research_depth(input_metadata, site_context),
             source_count=len(final_sources),
             key_findings=json_data.get("key_findings", []),
             sources=final_sources,
