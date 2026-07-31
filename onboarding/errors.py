@@ -17,8 +17,19 @@ class ConfigError(OnboardingError):
 
 
 class VercelError(OnboardingError):
-    """Raised when Vercel API calls fail."""
-    pass
+    """Raised when Vercel API calls fail.
+
+    Carries the structured error details from the Vercel response so callers
+    can branch on the HTTP status and error code rather than substring-matching
+    the message text.
+    """
+
+    def __init__(self, message: str, status_code: int | None = None,
+                 code: str | None = None, body: dict | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.body = body or {}
 
 
 class NamecheapError(OnboardingError):

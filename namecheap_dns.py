@@ -2,11 +2,26 @@
 
 Namecheap's API is XML-based and uses setHosts which REPLACES all records
 at once — so we always GET first, merge our changes, then PUT back.
+
+DEPRECATED
+==========
+This module is legacy. It configures www as a registrar-level ``URL301``
+redirect, which conflicts with the canonical DNS shape used by the live
+onboarding pipeline (``onboarding/namecheap.py`` +
+``onboarding/provisioner.py``), which sets ``A @`` + ``CNAME www ->
+cname.vercel-dns.com`` and lets Vercel handle the www redirect. Running both
+against the same domain makes them fight and delete each other's records.
+
+Its only remaining caller is ``onboard_site_old.py`` (also legacy). Do NOT use
+this for new work — provision DNS through ``onboarding.NamecheapClient`` /
+``Provisioner`` instead. This module is retained only so the old onboarding
+script keeps importing; it should be deleted once that script is removed.
 """
 from __future__ import annotations
 
 import os
 import logging
+import warnings
 from typing import Literal
 from xml.etree import ElementTree as ET
 
@@ -177,6 +192,18 @@ def configure_for_vercel(domain: str, gsc_verification_txt: str | None = None) -
         domain: The domain to configure
         gsc_verification_txt: Optional Google Search Console TXT verification value
     """
+    warnings.warn(
+        "namecheap_dns.configure_for_vercel is deprecated and uses a URL301 www "
+        "redirect that conflicts with the canonical onboarding DNS shape "
+        "(A @ + CNAME www). Use onboarding.NamecheapClient / Provisioner instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    logger.warning(
+        "DEPRECATED DNS path: configure_for_vercel(%s) writes URL301 www — "
+        "conflicts with the onboarding provisioner (A @ + CNAME www).",
+        domain,
+    )
     existing = get_hosts(domain)
     logger.info(f"Found {len(existing)} existing records for {domain}")
 

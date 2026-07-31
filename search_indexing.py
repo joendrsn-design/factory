@@ -57,17 +57,22 @@ def gsc_add_property(domain: str) -> None:
     Args:
         domain: The domain to add (e.g., "example.com")
     """
-    service = _gsc_service()
+    service = _gsc_service()  # raises a friendly error if the client isn't installed
+    from googleapiclient.errors import HttpError
+
     site_url = f"sc-domain:{domain}"
 
     try:
         service.sites().add(siteUrl=site_url).execute()
         logger.info(f"Added {site_url} to Google Search Console")
-    except Exception as e:
-        error_str = str(e).lower()
-        if "already" in error_str or "exists" in error_str:
+    except HttpError as e:
+        # Branch on the numeric HTTP status rather than substring-matching the
+        # stringified error, which is fragile and locale/format dependent.
+        status = getattr(getattr(e, "resp", None), "status", None)
+        if status in (200, 204, 409):
+            # 409 Conflict = property already added
             logger.info(f"{site_url} already in GSC")
-        elif "forbidden" in error_str or "403" in error_str:
+        elif status == 403:
             logger.warning(
                 f"GSC permission denied for {domain}. "
                 "Ensure the service account is added as an owner in GSC."

@@ -24,7 +24,7 @@ Options:
     --domain        Primary domain (e.g. "lamphill.org")
     --niche         Content niche (e.g. "health-longevity", "finance", "fitness")
     --template      Template slug (default: "magazine")
-    --tier          Site tier: flagship|vertical|micro|daily|utility|geo (default: vertical)
+    --tier          Site tier: flagship|daily|network|authority (default: authority)
     --name          Display name (default: title-cased from --site)
     --dry-run       Show what would happen without doing it
 """
@@ -205,7 +205,43 @@ NICHE_PRESETS = {
 
 # V2 templates + legacy
 VALID_TEMPLATES = ["magazine", "minimal", "editorial", "docs", "landing", "minimal-daily", "lamphill"]
-VALID_TIERS = ["flagship", "vertical", "micro", "daily", "utility", "geo"]
+
+# Tier vocabulary is owned by the pipeline validator (site_loader). Import it so
+# provision.py can never mint a tier that SiteLoader later rejects — the root
+# cause of the "born invalid" config regression. Previously provision.py used
+# {vertical, micro, utility, geo}, none of which SiteLoader accepts.
+from site_loader import VALID_TIERS as _LOADER_VALID_TIERS
+VALID_TIERS = sorted(_LOADER_VALID_TIERS)
+
+# Defaults for SiteLoader-required voice / article-type fields that presets may
+# not specify. Chosen to satisfy REQUIRED_VOICE, REQUIRED_ARTICLE_TYPE,
+# VALID_POV and VALID_RESEARCH_DEPTHS.
+DEFAULT_VOICE_POV = "third_person"
+DEFAULT_READING_LEVEL = "grade_10"
+DEFAULT_RESEARCH_DEPTH = "moderate"
+
+DEFAULT_ARTICLE_TYPES = [
+    {
+        "type_id": "deep_dive",
+        "label": "Deep Dive",
+        "description": "Long-form, research-heavy article",
+        "word_count_min": 2000,
+        "word_count_max": 3500,
+        "research_depth": "moderate",
+        "frequency": "weekly",
+        "enabled": True,
+    },
+    {
+        "type_id": "listicle",
+        "label": "Listicle",
+        "description": "Scannable list-format article",
+        "word_count_min": 1200,
+        "word_count_max": 2000,
+        "research_depth": "shallow",
+        "frequency": "2x_week",
+        "enabled": True,
+    },
+]
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -438,9 +474,34 @@ def sync_categories_from_yaml(site_key: str):
 
 # ── YAML generation ────────────────────────────────────────────────────────────
 
+def _normalize_article_types(types: list) -> list:
+    """Ensure every article type carries the SiteLoader-required fields."""
+    normalized = []
+    for at in types:
+        at = dict(at)
+        at.setdefault("research_depth", DEFAULT_RESEARCH_DEPTH)
+        at.setdefault("enabled", True)
+        normalized.append(at)
+    return normalized
+
+
 def build_site_yaml(args, preset: dict) -> str:
     """Generate full site YAML configuration."""
     name = args.name or title_case(args.site)
+
+    # Voice must include pov + reading_level (REQUIRED_VOICE). Preset values win
+    # over the defaults when a preset specifies them.
+    voice = {
+        "pov": DEFAULT_VOICE_POV,
+        "reading_level": DEFAULT_READING_LEVEL,
+        **preset["voice"],
+    }
+
+    # Honor a preset's own article types when provided, else the standard pair.
+    # Either way every type is normalized to include research_depth + enabled.
+    article_types = _normalize_article_types(
+        preset.get("article_types", DEFAULT_ARTICLE_TYPES)
+    )
 
     data = {
         "site_id": args.site,
@@ -452,28 +513,9 @@ def build_site_yaml(args, preset: dict) -> str:
 
         "categories": preset["categories"],
 
-        "voice": preset["voice"],
+        "voice": voice,
 
-        "article_types": [
-            {
-                "type_id": "deep_dive",
-                "label": "Deep Dive",
-                "description": "Long-form, research-heavy article",
-                "word_count_min": 2000,
-                "word_count_max": 3500,
-                "frequency": "weekly",
-                "enabled": True,
-            },
-            {
-                "type_id": "listicle",
-                "label": "Listicle",
-                "description": "Scannable list-format article",
-                "word_count_min": 1200,
-                "word_count_max": 2000,
-                "frequency": "2x_week",
-                "enabled": True,
-            },
-        ],
+        "article_types": article_types,
 
         "quality": {
             "publish_threshold": preset["publish_threshold"],
@@ -519,6 +561,23 @@ def build_site_yaml(args, preset: dict) -> str:
         "voice:",
         f"  tone: \"{data['voice']['tone']}\"",
         f"  persona: \"{data['voice']['persona']}\"",
+        f"  pov: {data['voice']['pov']}",
+        f"  reading_level: {data['voice']['reading_level']}",
+        "",
+        "article_types:",
+    ]
+    for at in data["article_types"]:
+        lines.append(f"- type_id: {at['type_id']}")
+        lines.append(f"  label: \"{at['label']}\"")
+        if at.get("description"):
+            lines.append(f"  description: \"{at['description']}\"")
+        lines.append(f"  word_count_min: {at['word_count_min']}")
+        lines.append(f"  word_count_max: {at['word_count_max']}")
+        lines.append(f"  research_depth: {at['research_depth']}")
+        if at.get("frequency"):
+            lines.append(f"  frequency: {at['frequency']}")
+        lines.append(f"  enabled: {str(at['enabled']).lower()}")
+    lines += [
         "",
         "quality:",
         f"  publish_threshold: {data['quality']['publish_threshold']}",
@@ -526,6 +585,34 @@ def build_site_yaml(args, preset: dict) -> str:
         f"  max_rewrites: {data['quality']['max_rewrites']}",
     ]
     return "\n".join(lines) + "\n"
+
+def _assert_config_valid(yaml_content: str, site_id: str) -> None:
+    """Validate generated YAML against the pipeline's SiteLoader rules.
+
+    Guarantees a site is never provisioned into a state the pipeline will
+    reject. Calls die() (exits) if the config would fail validation.
+    """
+    try:
+        from site_loader import SiteLoader, SiteConfigError
+    except Exception as e:  # pragma: no cover - loader should always import
+        warn(f"Could not import SiteLoader to validate config: {e}")
+        return
+
+    try:
+        raw = yaml.safe_load(yaml_content) if HAS_YAML else None
+    except Exception as e:
+        die(f"Generated config for '{site_id}' is not valid YAML: {e}")
+
+    if raw is None:
+        warn("Skipping config validation (PyYAML not available)")
+        return
+
+    loader = SiteLoader(config_dir=str(SITES_DIR))
+    try:
+        loader._validate(raw, Path(f"<generated:{site_id}>"))
+    except SiteConfigError as e:
+        die(f"Generated config for '{site_id}' failed pipeline validation:\n{e}")
+
 
 def build_supabase_row(args, preset: dict) -> dict:
     """Build row for Supabase sites table."""
@@ -583,6 +670,11 @@ def cmd_new(args):
     # Step 1: Write factory YAML
     section("Step 1/5 - Factory site config")
     yaml_content = build_site_yaml(args, preset)
+
+    # Fail fast if the generated config wouldn't pass the pipeline validator,
+    # before writing any file or creating DB rows.
+    _assert_config_valid(yaml_content, args.site)
+
     cat_count = len(preset["categories"])
 
     if args.dry_run:
@@ -1002,7 +1094,7 @@ def main():
     p_new.add_argument("--domain", required=True, help="Primary domain")
     p_new.add_argument("--niche", required=True, help=f"Niche: {', '.join(NICHE_PRESETS)}")
     p_new.add_argument("--template", default="magazine", help="Template (default: magazine)")
-    p_new.add_argument("--tier", default="vertical", help="Tier: flagship|vertical|micro|daily|utility|geo")
+    p_new.add_argument("--tier", default="authority", help="Tier: flagship|daily|network|authority")
     p_new.add_argument("--name", default=None, help="Display name")
     p_new.add_argument("--dry-run", action="store_true", help="Preview only")
 

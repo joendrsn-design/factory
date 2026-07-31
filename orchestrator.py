@@ -56,7 +56,7 @@ import requests
 from artifacts import (
     new_run_id, new_article_id,
     load_artifacts_from_dir, save_artifact, load_artifact,
-    save_batch_manifest,
+    save_batch_manifest, topic_metadata,
 )
 from site_loader import SiteLoader
 from topic_generator import TopicGenerator
@@ -317,6 +317,66 @@ class RealtimePipeline:
         self.category_tracker = CategoryTracker()
         self.angle_bank = AngleBank()
 
+    def _topic_artifact_from_title(
+        self,
+        title: str,
+        site_context,
+        article_type: str,
+        run_id: str,
+    ) -> tuple[dict, str]:
+        """Build a topic artifact for a caller-supplied title.
+
+        Mirrors the shape TopicGenerator._parse_topics produces so every
+        downstream stage sees exactly what it always has.
+
+        Raises ValueError when the topic cannot be honoured. It never returns a
+        substitute topic: a caller that asked for topic A and silently got
+        topic B would record success against content nobody wrote.
+        """
+        title = (title or "").strip()
+        if not title:
+            raise ValueError("--topic was empty")
+
+        enabled = site_context.get_enabled_article_types()
+        if not enabled:
+            raise ValueError(
+                f"site {site_context.site_id!r} has no enabled article types"
+            )
+
+        if article_type:
+            matches = [at for at in enabled if at["type_id"] == article_type]
+            if not matches:
+                raise ValueError(
+                    f"--type {article_type!r} is not an enabled article type for "
+                    f"{site_context.site_id!r} "
+                    f"(enabled: {', '.join(at['type_id'] for at in enabled)})"
+                )
+            chosen = matches[0]
+        else:
+            chosen = enabled[0]
+
+        meta = topic_metadata(
+            run_id=run_id,
+            article_id=new_article_id(),
+            site_id=site_context.site_id,
+            article_type=chosen["type_id"],
+            topic=title,
+            keywords=[],
+            angle="",
+        )
+        # The enriched fields _parse_topics sets. Downstream reads them with
+        # .get(), but a supplied topic should not be a different shape from a
+        # generated one.
+        meta["primary_keyword"] = ""
+        meta["secondary_keywords"] = []
+        meta["intent"] = ""
+        meta["audience_subset"] = ""
+        meta["target_depth"] = "standard"
+        meta["notes"] = ""
+        meta["topic_source"] = "supplied"
+
+        return meta, f"# Topic: {title}"
+
     def run_site(
         self,
         site_id: str,
@@ -324,10 +384,15 @@ class RealtimePipeline:
         article_type: str = "",
         run_id: str = "",
         max_rewrites: int = 2,
+        topic_override: str = "",
     ) -> dict:
         """
         Run full pipeline for one site.
         Returns run summary.
+
+        topic_override: when set, this exact topic is used and Step 1's topic
+        generation is skipped entirely. Raises ValueError rather than falling
+        back to a generated topic if it cannot be honoured.
         """
         if not run_id:
             run_id = new_run_id()
@@ -371,7 +436,12 @@ class RealtimePipeline:
         # ── Step 0: Check Angle Bank ────────────────────────
         # Before generating new topics, see if we have banked angles for hungry categories
         banked_angles = []
-        if expansion_enabled and hungry_categories:
+        if topic_override:
+            # A supplied topic means exactly the requested article and nothing
+            # else. Withdrawing banked angles here would add articles the
+            # caller never asked for, so the bank is left untouched.
+            logger.info("[orchestrator] Step 0: Skipped angle bank (--topic supplied)")
+        elif expansion_enabled and hungry_categories:
             logger.info(f"[orchestrator] Step 0: Checking angle bank for {site_id}")
             banked_angles = self.angle_bank.withdraw(
                 site_key=site_id,
@@ -394,7 +464,19 @@ class RealtimePipeline:
 
         # ── Step 1: Generate Topics (if needed) ─────────────
         topics = []
-        if topics_needed > 0:
+        if topic_override:
+            # Bypass generation entirely. _topic_artifact_from_title raises if
+            # the topic cannot be honoured; that exception is deliberately not
+            # caught here so the run fails loudly instead of substituting one.
+            topics = [self._topic_artifact_from_title(
+                topic_override, site_context, article_type, run_id
+            )]
+            # Persisted so the run leaves the same trail on disk as any other.
+            self.topic_gen.save_topics(topics, PIPELINE["topics"])
+            summary["topics_generated"] = 0
+            summary["topic_supplied"] = topic_override
+            logger.info(f"[orchestrator] Step 1: Using supplied topic — {topic_override[:60]}")
+        elif topics_needed > 0:
             logger.info(f"[orchestrator] Step 1: Generating {topics_needed} topics for {site_id}")
             topics = self.topic_gen.generate_for_site(
                 site_id, count=topics_needed, article_type_filter=article_type, run_id=run_id
@@ -502,6 +584,10 @@ class RealtimePipeline:
                 current_plan_meta = plan_meta
                 current_plan_body = plan_body
                 rewrite_count = 0
+                # Concrete issues from prior QA/PreQA passes. Propagated into the
+                # article metadata before each QA call so QA's "if a previous issue
+                # persists, verdict MUST be KILL" escalation can actually fire.
+                previous_issues = []
 
                 while True:
                     # Step 4: Write
@@ -525,9 +611,11 @@ class RealtimePipeline:
                             if rewrite_count < site_max_rewrites:
                                 summary["qa_rewrite"] += 1
                                 rewrite_count += 1
+                                previous_issues.append(f"PreQA: {preqa_reason}")
                                 current_plan_meta = dict(plan_meta)
                                 current_plan_meta["rewrite_count"] = rewrite_count
                                 current_plan_meta["previous_feedback"] = f"PreQA failed: {preqa_reason}"
+                                current_plan_meta["previous_issues"] = previous_issues
                                 current_plan_body = plan_body + f"\n\n---\n\nPREQA ISSUE (attempt {rewrite_count}):\n{preqa_reason}\n\nFix the basic structural issue and try again."
                                 continue  # Skip QA, go straight to rewrite
                             else:
@@ -554,6 +642,7 @@ class RealtimePipeline:
                     # Step 5: QA (only reached if PreQA passed)
                     logger.info(f"[orchestrator] Step 5: QA — {angle_title}")
                     art_meta["rewrite_count"] = rewrite_count
+                    art_meta["previous_issues"] = previous_issues
                     qa_meta, qa_body = self.qa.run_single(
                         art_meta, art_body, PIPELINE["qa"]
                     )
@@ -573,10 +662,17 @@ class RealtimePipeline:
                         logger.info(f"[orchestrator] Feedback: {qa_meta.get('feedback', '')[:300]}")
                         logger.info(f"[orchestrator] Rewrite instructions: {qa_meta.get('rewrite_instructions', '')[:300]}")
 
+                        # Record the concrete issue so a repeat on the next pass
+                        # escalates to KILL instead of looping on the same defect.
+                        qa_issue = qa_meta.get("rewrite_instructions") or qa_meta.get("feedback", "")
+                        if qa_issue:
+                            previous_issues.append(qa_issue)
+
                         # Inject rewrite instructions into plan for next Write pass
                         current_plan_meta = dict(plan_meta)
                         current_plan_meta["rewrite_count"] = rewrite_count
                         current_plan_meta["previous_feedback"] = qa_meta.get("feedback", "")
+                        current_plan_meta["previous_issues"] = previous_issues
 
                         # Append rewrite instructions to plan body
                         rewrite_inst = qa_meta.get("rewrite_instructions", "")
@@ -1053,15 +1149,24 @@ class AutonomousBatchPipeline:
                             "error": "No results collected"
                         })
 
-                elif batch.processing_status in ("in_progress", "created"):
-                    logger.info(f"[autonomous] Batch {batch_id} still processing")
+                elif batch.processing_status in ("in_progress", "created", "canceling"):
+                    # "canceling" is transient — the batch transitions to "ended"
+                    # once cancellation completes, at which point results are
+                    # collected. Treating it as failed here would discard a batch
+                    # that is still finishing.
+                    logger.info(f"[autonomous] Batch {batch_id} still processing ({batch.processing_status})")
                     summary["batches_still_pending"] += 1
 
                 else:
-                    # Failed or cancelled
-                    error_msg = f"Batch status: {batch.processing_status}"
-                    self.tracker.mark_failed(batch_id, error_msg)
-                    summary["errors"].append({"batch_id": batch_id, "error": error_msg})
+                    # Unexpected/unknown status. Anthropic only reports
+                    # in_progress / canceling / ended, so this is either a new
+                    # status or a transient anomaly — keep the batch record and
+                    # re-check next cycle rather than destroying it via mark_failed.
+                    logger.warning(
+                        f"[autonomous] Batch {batch_id} in unexpected status "
+                        f"'{batch.processing_status}' — leaving pending for retry"
+                    )
+                    summary["batches_still_pending"] += 1
 
             except Exception as e:
                 logger.error(f"[autonomous] Error checking batch {batch_id}: {e}")
@@ -1195,9 +1300,15 @@ class AutonomousBatchPipeline:
                         collected += 1
                         logger.info(f"[autonomous] Collected {article_id}")
                     else:
+                        # Persist the failed output so the work is recoverable
+                        # rather than silently lost (mirrors BaseModule.collect).
+                        out_meta["status"] = "failed"
+                        out_meta["error"] = error
+                        save_artifact(out_meta, out_body, output_dir)
                         logger.warning(f"[autonomous] Validation failed for {article_id}: {error}")
                 else:
-                    logger.error(f"[autonomous] API error for {article_id}")
+                    error_msg = str(getattr(result.result, "error", "Unknown error"))
+                    logger.error(f"[autonomous] API error for {article_id}: {error_msg}")
 
             except Exception as e:
                 logger.error(f"[autonomous] Parse error for {article_id}: {e}")
@@ -1327,28 +1438,74 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Preview deposit")
     parser.add_argument("--config", default="config/sites", help="Site config directory")
     parser.add_argument("--report", default="", help="Save report to file")
+    parser.add_argument("--topic", default="",
+                       help="Run this exact topic, skipping topic generation (run mode, one article)")
+    parser.add_argument("--json", action="store_true",
+                       help="Print the run summary as JSON instead of Markdown (run mode)")
 
     args = parser.parse_args()
 
     if args.mode == "run":
         pipeline = RealtimePipeline(config_dir=args.config)
 
+        # --topic guards. Each is a contradiction the caller must resolve; none
+        # may be resolved by guessing, because every wrong guess here writes an
+        # article the caller did not ask for.
+        if args.topic:
+            if args.all:
+                print("--topic cannot be combined with --all: a supplied topic "
+                      "belongs to exactly one site", file=sys.stderr)
+                return 2
+            if not args.site:
+                print("--topic requires --site", file=sys.stderr)
+                return 2
+            if args.count not in (0, 1):
+                print(f"--topic produces exactly one article, but --count "
+                      f"{args.count} was given", file=sys.stderr)
+                return 2
+
+        if args.topic:
+            try:
+                summary = pipeline.run_site(
+                    args.site, count=1, article_type=args.type,
+                    topic_override=args.topic,
+                )
+            except Exception as e:
+                # Loud failure is required: never fall back to a generated topic.
+                print(f"--topic {args.topic!r} could not be honoured: {e}",
+                      file=sys.stderr)
+                return 1
+            if args.json:
+                print(json.dumps(summary, indent=2, default=str))
+            else:
+                print("# Article Factory — Run Report\n" + format_run_summary(summary))
+            if args.report:
+                Path(args.report).parent.mkdir(parents=True, exist_ok=True)
+                with open(args.report, "w") as f:
+                    f.write(format_run_summary(summary))
+            return 0
+
         if args.all:
             summaries = pipeline.run_all(count_per_site=args.count)
             report = "# Article Factory — Run Report\n"
             for site_id, summary in summaries.items():
                 report += format_run_summary(summary)
+            json_payload = summaries
         elif args.site:
             summary = pipeline.run_site(
                 args.site, count=args.count, article_type=args.type
             )
             report = "# Article Factory — Run Report\n"
             report += format_run_summary(summary)
+            json_payload = summary
         else:
             print("Specify --site or --all")
             return
 
-        print(report)
+        if args.json:
+            print(json.dumps(json_payload, indent=2, default=str))
+        else:
+            print(report)
         if args.report:
             Path(args.report).parent.mkdir(parents=True, exist_ok=True)
             with open(args.report, "w") as f:
@@ -1487,4 +1644,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main() returns None on every pre-existing path, so this stays exit 0 as
+    # before; it exists so --topic can signal failure with a non-zero status.
+    sys.exit(main())

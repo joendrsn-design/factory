@@ -107,15 +107,22 @@ class VercelClient:
             return {}
 
         # Error handling with full response body
+        error_body: dict[str, Any] = {}
+        error_code = None
         try:
             error_body = response.json()
-            error_message = error_body.get("error", {}).get("message", response.text)
+            error_obj = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+            error_message = error_obj.get("message", response.text)
+            error_code = error_obj.get("code")
         except ValueError:
             error_message = response.text
 
         raise VercelError(
             f"Vercel API error ({response.status_code}): {error_message}\n"
-            f"  Endpoint: {method} {path}"
+            f"  Endpoint: {method} {path}",
+            status_code=response.status_code,
+            code=error_code,
+            body=error_body,
         )
 
     def domain_exists(self, domain: str) -> bool:
@@ -171,14 +178,28 @@ class VercelClient:
             data["redirectStatusCode"] = redirect_status_code
             logger.info(f"  Configuring {redirect_status_code} redirect to: {redirect_to}")
 
-        # 409 means domain already exists, which is fine for idempotency
+        # 409 means the domain is already in use — fine for idempotency only if
+        # it's already attached to THIS project. If it belongs to a different
+        # project, that's a real error we must surface rather than silently treat
+        # as success.
         try:
             result = self._request("POST", path, json_data=data, expected_status=[200, 201])
             logger.info(f"Domain added: {domain}")
             return result
         except VercelError as e:
-            if "409" in str(e) or "already" in str(e).lower():
-                logger.info(f"Domain already exists on Vercel: {domain}")
+            if e.status_code == 409:
+                existing = e.body.get("error", {}).get("domain", {}) if e.body else {}
+                existing_project = existing.get("projectId")
+                if existing_project and existing_project != self.project_id:
+                    raise VercelError(
+                        f"Domain {domain} is registered to a different Vercel "
+                        f"project ({existing_project}), not {self.project_id}",
+                        status_code=409,
+                        code=e.code,
+                        body=e.body,
+                    ) from e
+
+                logger.info(f"Domain already exists on Vercel project: {domain}")
                 # If redirect was requested, update it
                 if redirect_to:
                     return self.configure_redirect(domain, redirect_to, redirect_status_code)

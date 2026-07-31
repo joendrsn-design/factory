@@ -338,12 +338,13 @@ class TenantProvisioner:
             # Get verification token
             token = self.gsc.get_verification_token(manifest.domain)
 
-            # Add TXT record for verification
-            self.namecheap.add_record(
+            # Set TXT record for verification, replacing any stale GSC token so
+            # re-runs don't accumulate conflicting verification records.
+            self.namecheap.set_verification_txt(
                 domain=manifest.domain,
-                record_type="TXT",
                 host="@",
                 value=token,
+                match_prefix="google-site-verification=",
                 ttl=1800,
             )
 
@@ -384,12 +385,13 @@ class TenantProvisioner:
             try:
                 token = self.bing.get_verification_token(manifest.domain)
 
-                # Add TXT record for verification (BingSiteAuth format)
-                self.namecheap.add_record(
+                # Set TXT record for verification (BingSiteAuth format), replacing
+                # any stale Bing token so re-runs don't accumulate duplicates.
+                self.namecheap.set_verification_txt(
                     domain=manifest.domain,
-                    record_type="TXT",
                     host="@",
                     value=f"BingSiteAuth {token}",
+                    match_prefix="BingSiteAuth",
                     ttl=1800,
                 )
 

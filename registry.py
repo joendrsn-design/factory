@@ -109,6 +109,11 @@ class Registry:
         else:
             self._offline = False
 
+        # Whether the atomic increment_site_totals() RPC is deployed.
+        # None = unknown, True = present, False = fall back to read-modify-write.
+        # See migrations/0001_atomic_registry.sql.
+        self._atomic_increment_supported = None
+
     def _request(self, method: str, endpoint: str, data: dict = None) -> dict:
         """Make a request to Supabase REST API."""
         if self._offline:
@@ -173,8 +178,23 @@ class Registry:
         articles_per_run: int = 1,
         status: str = "active",
     ) -> bool:
-        """Register a new site or update existing."""
+        """Register a new site, or update settings if it already exists.
+
+        Idempotent: an existing site is updated in place (without disturbing its
+        schedule) rather than inserted again, so a second call cannot create a
+        duplicate row. A 409 from a concurrent insert is handled as a backstop
+        when a unique constraint on site_key is present (see
+        migrations/0001_atomic_registry.sql).
+        """
         try:
+            # If the site already exists, update its settings instead of inserting
+            # a second row (get_site returns None when absent).
+            if self.get_site(site_key) is not None:
+                return self.update_site(
+                    site_key, run_frequency=run_frequency,
+                    articles_per_run=articles_per_run, status=status,
+                )
+
             # Calculate next run time
             next_run = self._calculate_next_run(run_frequency)
 
@@ -188,7 +208,7 @@ class Registry:
             logger.info(f"Registered site: {site_key}")
             return True
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 409:  # Conflict - already exists
+            if e.response is not None and e.response.status_code == 409:  # Conflict - already exists (race)
                 # Update instead
                 return self.update_site(site_key, run_frequency=run_frequency,
                                         articles_per_run=articles_per_run, status=status)
@@ -254,27 +274,22 @@ class Registry:
 
             # Calculate next run
             next_run = self._calculate_next_run(site.run_frequency, now)
+            next_run_iso = next_run.isoformat() if next_run else None
 
-            # Update registry
-            updates = {
-                "last_run_at": now.isoformat(),
-                "next_run_at": next_run.isoformat() if next_run else None,
-                "total_runs": site.total_runs + 1,
-                "total_articles_generated": site.total_articles_generated + articles_generated,
-                "total_articles_published": site.total_articles_published + articles_published,
-                "total_articles_killed": site.total_articles_killed + articles_killed,
-                "total_rewrites": site.total_rewrites + articles_rewritten,
-                "total_cost_cents": site.total_cost_cents + cost_cents,
-            }
-
-            if status == "success":
-                updates["consecutive_failures"] = 0
-                updates["last_error"] = None
-            else:
-                updates["consecutive_failures"] = site.consecutive_failures + 1
-                updates["last_error"] = error_message
-
-            self._request("PATCH", f"factory_registry?site_key=eq.{site_key}", updates)
+            # Prefer an atomic server-side increment so concurrent runs for the
+            # same site don't lose counter updates (read-modify-write races).
+            # Falls back to the classic read-modify-write when the RPC isn't
+            # deployed (see migrations/0001_atomic_registry.sql).
+            if not self._record_run_atomic(
+                site_key, now, next_run_iso, status, error_message,
+                articles_generated, articles_published, articles_killed,
+                articles_rewritten, cost_cents,
+            ):
+                self._record_run_rmw(
+                    site, now, next_run_iso, status, error_message,
+                    articles_generated, articles_published, articles_killed,
+                    articles_rewritten, cost_cents,
+                )
 
             # Record in factory_runs history
             self._request("POST", "factory_runs", {
@@ -298,6 +313,79 @@ class Registry:
         except Exception as e:
             logger.error(f"Failed to record run for {site_key}: {e}")
             return False
+
+    def _record_run_atomic(
+        self, site_key, now, next_run_iso, status, error_message,
+        articles_generated, articles_published, articles_killed,
+        articles_rewritten, cost_cents,
+    ) -> bool:
+        """Atomically increment registry totals via a Postgres RPC.
+
+        Returns True if the atomic update succeeded, False if the RPC is not
+        deployed (so the caller should fall back to read-modify-write).
+        """
+        if self._atomic_increment_supported is False:
+            return False
+
+        try:
+            self._request("POST", "rpc/increment_site_totals", {
+                "p_site_key": site_key,
+                "p_last_run_at": now.isoformat(),
+                "p_next_run_at": next_run_iso,
+                "p_status": status,
+                "p_error": error_message,
+                "p_articles_generated": articles_generated,
+                "p_articles_published": articles_published,
+                "p_articles_killed": articles_killed,
+                "p_rewrites": articles_rewritten,
+                "p_cost_cents": cost_cents,
+            })
+            self._atomic_increment_supported = True
+            return True
+        except requests.exceptions.HTTPError as e:
+            resp = e.response
+            body = (resp.text or "") if resp is not None else ""
+            # 404 / PGRST202 => the function isn't deployed; fall back for good.
+            if resp is not None and (resp.status_code == 404 or "PGRST202" in body):
+                if self._atomic_increment_supported is None:
+                    logger.warning(
+                        "increment_site_totals() RPC not found — using "
+                        "read-modify-write. Apply migrations/0001_atomic_registry.sql "
+                        "for atomic, race-safe counter updates."
+                    )
+                self._atomic_increment_supported = False
+                return False
+            raise
+
+    def _record_run_rmw(
+        self, site, now, next_run_iso, status, error_message,
+        articles_generated, articles_published, articles_killed,
+        articles_rewritten, cost_cents,
+    ) -> None:
+        """Read-modify-write fallback for updating registry totals.
+
+        NOTE: not atomic — concurrent runs for the same site can lose counter
+        increments. Prefer the atomic RPC path (_record_run_atomic).
+        """
+        updates = {
+            "last_run_at": now.isoformat(),
+            "next_run_at": next_run_iso,
+            "total_runs": site.total_runs + 1,
+            "total_articles_generated": site.total_articles_generated + articles_generated,
+            "total_articles_published": site.total_articles_published + articles_published,
+            "total_articles_killed": site.total_articles_killed + articles_killed,
+            "total_rewrites": site.total_rewrites + articles_rewritten,
+            "total_cost_cents": site.total_cost_cents + cost_cents,
+        }
+
+        if status == "success":
+            updates["consecutive_failures"] = 0
+            updates["last_error"] = None
+        else:
+            updates["consecutive_failures"] = site.consecutive_failures + 1
+            updates["last_error"] = error_message
+
+        self._request("PATCH", f"factory_registry?site_key=eq.{site.site_key}", updates)
 
     def record_failure(self, site_key: str, run_id: str, error_message: str, duration_seconds: int = 0) -> bool:
         """Convenience method to record a failed run."""

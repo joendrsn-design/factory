@@ -278,6 +278,66 @@ class NamecheapClient:
         self.set_host_records(domain, existing)
         logger.info(f"Successfully added {record_type} record for {host}.{domain}")
 
+    def set_verification_txt(
+        self,
+        domain: str,
+        host: str,
+        value: str,
+        match_prefix: str,
+        ttl: int = 1800,
+    ) -> None:
+        """
+        Idempotently set a verification TXT record, replacing any stale one.
+
+        Removes every existing TXT record at ``host`` whose value starts with
+        ``match_prefix`` (e.g. a previous ``google-site-verification=`` or
+        ``BingSiteAuth`` token) and installs ``value`` in a single setHosts
+        call. This prevents multiple conflicting verification records from
+        piling up on ``@`` across repeated provisioning runs — a plain
+        ``add_record`` would append a second token instead of replacing the
+        stale one.
+
+        Args:
+            domain: The domain to update.
+            host: Host/name field for the TXT record (usually "@").
+            value: The desired TXT record value.
+            match_prefix: Prefix identifying prior verification records to remove.
+            ttl: Time-to-live in seconds (default 1800).
+        """
+        logger.info(f"Setting verification TXT ({match_prefix}...) for {host}.{domain}")
+
+        existing = self.get_host_records(domain)
+        host_lower = host.lower()
+
+        def is_stale(rec: dict[str, Any]) -> bool:
+            return (
+                rec["type"].upper() == "TXT"
+                and rec["name"].lower() == host_lower
+                and rec["address"].startswith(match_prefix)
+            )
+
+        stale = [r for r in existing if is_stale(r)]
+
+        # Already exactly correct with no duplicate/stale records → no-op.
+        if len(stale) == 1 and stale[0]["address"] == value:
+            logger.info(f"Verification TXT already up to date for {host}.{domain}")
+            return
+
+        kept = [r for r in existing if not is_stale(r)]
+        kept.append({
+            "type": "TXT",
+            "name": host,
+            "address": value,
+            "ttl": ttl,
+            "mx_pref": None,
+        })
+
+        self.set_host_records(domain, kept)
+        logger.info(
+            f"Set verification TXT for {host}.{domain} "
+            f"(replaced {len(stale)} stale record(s))"
+        )
+
     def record_exists(
         self,
         domain: str,

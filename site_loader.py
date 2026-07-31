@@ -131,6 +131,15 @@ class SiteContext:
     # Raw config (full YAML dict, for anything not explicitly mapped)
     _raw: dict = field(default_factory=dict, repr=False)
 
+    @property
+    def raw_config(self) -> dict:
+        """Full YAML dict, for config keys not explicitly mapped to fields.
+
+        Read-only by design: SiteContext is documented as immutable, and the
+        consumers (category_tracker, expansion, orchestrator) only read from it.
+        """
+        return self._raw
+
     def get_article_type(self, type_id: str) -> Optional[dict]:
         """Get a specific article type config by type_id."""
         for at in self.article_types:

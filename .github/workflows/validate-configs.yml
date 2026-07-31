@@ -1,0 +1,44 @@
+name: Validate Site Configs
+
+# Fast, dependency-light gate: ensures every site config passes the pipeline's
+# SiteLoader validation. Catches "born invalid" regressions (missing pov /
+# reading_level / research_depth, bad tier) before they reach production.
+on:
+  push:
+    paths:
+      - 'config/sites/**'
+      - 'site_loader.py'
+      - 'provision.py'
+      - 'scripts/validate_configs.py'
+      - '.github/workflows/validate-configs.yml'
+  pull_request:
+    paths:
+      - 'config/sites/**'
+      - 'site_loader.py'
+      - 'provision.py'
+      - 'scripts/validate_configs.py'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate site configs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate site configs
+        run: python scripts/validate_configs.py
+        env:
+          PYTHONIOENCODING: utf-8

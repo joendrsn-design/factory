@@ -1,7 +1,7 @@
 site_id: dailyproverbs
 site_name: Daily Proverbs
 domain: dailyproverbs.org
-tier: standard
+tier: daily
 niche: daily-wisdom
 template: daily-page
 categories:
@@ -26,10 +26,13 @@ categories:
 voice:
   tone: contemplative, reverent, accessible
   persona: thoughtful guide who makes ancient wisdom practical for modern life
+  pov: second_person_reflective
+  reading_level: grade_8
 article_types:
 - type_id: deep_dive
   label: Deep Dive
   description: Long-form, research-heavy article
+  research_depth: shallow
   word_count_min: 2000
   word_count_max: 3500
   frequency: weekly
@@ -37,6 +40,7 @@ article_types:
 - type_id: listicle
   label: Listicle
   description: Scannable list-format article
+  research_depth: shallow
   word_count_min: 1200
   word_count_max: 2000
   frequency: 2x_week
