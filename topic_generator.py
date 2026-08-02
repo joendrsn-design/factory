@@ -966,6 +966,20 @@ RULES:
 
 # ── CLI ─────────────────────────────────────────────────────
 
+def _topic_json(meta: dict) -> dict:
+    """Shape one topic's metadata for --json stdout.
+
+    `title` is added as an alias of the generator's own `topic` key so a
+    consumer has one obvious field to read. Everything the generator already
+    produced (angle, keywords, primary_keyword, intent, ...) is passed through
+    untouched rather than filtered to a whitelist, so a new metadata field
+    reaches the caller without needing a change here.
+    """
+    out = dict(meta)
+    out["title"] = meta.get("topic", "")
+    return out
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -982,6 +996,10 @@ def main():
     parser.add_argument("--output", default="pipeline/topics", help="Output directory")
     parser.add_argument("--batch-dir", default="pipeline/batches", help="Batch manifest dir")
     parser.add_argument("--config", default="config/sites", help="Site config directory")
+    parser.add_argument("--propose", action="store_true",
+                      help="Generate candidates but do NOT write them to --output (run mode)")
+    parser.add_argument("--json", action="store_true",
+                      help="Print candidate topics as JSON on stdout (run mode)")
 
     args = parser.parse_args()
     gen = TopicGenerator(config_dir=args.config)
@@ -992,18 +1010,29 @@ def main():
         if args.all:
             all_results = gen.generate_for_all(count_per_site=args.count, run_id=run_id)
             total = 0
+            proposed = []
             for site_id, topics in all_results.items():
-                saved = gen.save_topics(topics, args.output)
+                # --propose: candidates are generated as usual but never written.
+                saved = len(topics) if args.propose else gen.save_topics(topics, args.output)
                 total += saved
-                print(f"  {site_id}: {saved} topics")
-            print(f"\n✅ Generated {total} topics across {len(all_results)} sites")
+                proposed.extend(topics)
+                if not args.json:
+                    print(f"  {site_id}: {saved} topics")
+            if args.json:
+                # Sole stdout write in this branch: logging goes to stderr.
+                print(json.dumps([_topic_json(m) for m, _ in proposed], indent=2))
+            else:
+                print(f"\n✅ Generated {total} topics across {len(all_results)} sites")
         elif args.site:
             topics = gen.generate_for_site(
                 args.site, count=args.count,
                 article_type_filter=args.type, run_id=run_id
             )
-            saved = gen.save_topics(topics, args.output)
-            print(f"\n✅ Generated {saved} topics for {args.site}")
+            saved = len(topics) if args.propose else gen.save_topics(topics, args.output)
+            if args.json:
+                print(json.dumps([_topic_json(m) for m, _ in topics], indent=2))
+            else:
+                print(f"\n✅ Generated {saved} topics for {args.site}")
         else:
             print("Specify --site or --all")
 
