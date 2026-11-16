@@ -37,11 +37,16 @@ Usage:
 
 import os
 import re
+import json
+import shutil
 import yaml
 import logging
 import argparse
+import tempfile
 import requests
+import subprocess
 from pathlib import Path
+from typing import Optional
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -50,6 +55,7 @@ load_dotenv()
 from site_loader import SiteLoader, SiteContext
 from artifacts import load_artifacts_from_dir
 from p4_gates import run_p4_gates, update_article_status
+from models_config import MODELS
 
 logger = logging.getLogger("article_factory.deposit")
 
@@ -61,6 +67,243 @@ def clean_article_body(body: str) -> str:
     body = re.sub(r"\n---\n\n```json\n.*?\n```", "", body, flags=re.DOTALL)
     body = re.sub(r"\n{4,}", "\n\n\n", body)
     return body.strip()
+
+
+# ── Deslop (last step before publishing) ────────────────────
+
+def deslop_body(body: str, article_id: str) -> tuple[str, Optional[int]]:
+    """
+    Final AI-slop pass, run as the last step before an article is published.
+
+    Uses the deterministic, zero-dependency scanner at pipeline/deslop/slop.mjs
+    (no LLM, no network). Loops the `--fix` pass (safe word/phrase swaps, in
+    place) and re-scores after each, stopping when the score drops below
+    DESLOP_TARGET_SCORE, when a pass stops helping (plateau), or at the cap.
+
+    Returns (possibly-cleaned body, max slop score or None). FAILS OPEN: on any
+    error (node missing, timeout, unparseable output) it returns the original
+    body and None, so tooling problems never block publishing.
+
+    Env controls:
+      DESLOP_ENABLED       (default "1")  — "0" bypasses the pass entirely
+      DESLOP_FIX           (default "1")  — "0" scores only, no auto-fix
+      DESLOP_TARGET_SCORE  (default "15") — loop fixes until below this
+      DESLOP_MAX_PASSES    (default "10") — hard cap on fix passes
+    """
+    if os.environ.get("DESLOP_ENABLED", "1").lower() not in ("1", "true", "yes"):
+        return body, None
+
+    scanner = Path(__file__).resolve().parent / "pipeline" / "deslop" / "slop.mjs"
+    node = shutil.which("node")
+    if not node or not scanner.exists():
+        logger.warning("[deslop] node or slop.mjs not found; skipping (fail-open)")
+        return body, None
+
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".md", delete=False, encoding="utf-8"
+        ) as tf:
+            tf.write(body)
+            tmp = tf.name
+
+        def _score() -> Optional[int]:
+            res = subprocess.run(
+                [node, str(scanner), tmp, "--json"],
+                capture_output=True, text=True, timeout=120,
+            )
+            try:
+                data = json.loads(res.stdout)
+                return max((f.get("score", 0) for f in data.get("files", [])), default=0)
+            except (ValueError, TypeError):
+                return None
+
+        target = int(os.environ.get("DESLOP_TARGET_SCORE", "15"))
+        max_passes = int(os.environ.get("DESLOP_MAX_PASSES", "10"))
+        do_fix = os.environ.get("DESLOP_FIX", "1").lower() in ("1", "true", "yes")
+
+        # Loop the deterministic --fix pass until the score drops below the
+        # target, the fixes stop helping (plateau), or we hit the pass cap.
+        # --fix is deterministic, so it converges fast — the plateau check and
+        # the cap both guard against an unbounded loop.
+        score = _score()
+        passes = 0
+        while do_fix and score is not None and score >= target and passes < max_passes:
+            subprocess.run(
+                [node, str(scanner), tmp, "--fix"],
+                capture_output=True, timeout=120,
+            )
+            passes += 1
+            new_score = _score()
+            if new_score is None or new_score >= score:
+                score = new_score if new_score is not None else score
+                break  # no further improvement — stop rather than spin
+            score = new_score
+
+        with open(tmp, encoding="utf-8") as f:
+            cleaned = f.read()
+        if passes:
+            logger.info(
+                f"[deslop] {article_id}: {passes} fix pass(es), final score {score}"
+            )
+        return cleaned, score
+    except Exception as e:  # noqa: BLE001 — never let deslop break a publish
+        logger.warning(
+            f"[deslop] scan failed for {article_id}; publishing unchanged "
+            f"(fail-open): {e}"
+        )
+        return body, None
+    finally:
+        if tmp and os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def _deslop_tool() -> tuple[Optional[str], Optional[str]]:
+    """Locate (node, slop.mjs). Returns (None, None) if either is missing."""
+    scanner = Path(__file__).resolve().parent / "pipeline" / "deslop" / "slop.mjs"
+    node = shutil.which("node")
+    if not node or not scanner.exists():
+        return None, None
+    return node, str(scanner)
+
+
+def deslop_rewrite_once(
+    body: str, article_id: str, site_context: Optional[SiteContext] = None
+) -> Optional[str]:
+    """
+    One LLM pass that rewrites the structural slop `--fix` can't swap
+    (construct / vague-this / wordy / rhythm findings).
+
+    Targets the scanner's own findings and is told to keep every fact, number,
+    name, quote, citation, link and heading, preserve the site voice, and hold
+    length within ~10%. Returns the rewritten markdown, or None when the rewrite
+    is unavailable or looks unsafe (caller then keeps the prior body).
+
+    Env: DESLOP_REWRITE_MODEL (default "haiku").
+    """
+    node, scanner = _deslop_tool()
+    if not node:
+        return None
+
+    # Gather the current findings to hand the model.
+    tmp, findings = None, []
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".md", delete=False, encoding="utf-8"
+        ) as tf:
+            tf.write(body)
+            tmp = tf.name
+        res = subprocess.run(
+            [node, scanner, tmp, "--json"],
+            capture_output=True, text=True, timeout=120,
+        )
+        data = json.loads(res.stdout)
+        for f in data.get("files", []):
+            findings.extend(f.get("findings", []))
+    except Exception:
+        return None
+    finally:
+        if tmp and os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    if not findings:
+        return None
+
+    finding_lines = []
+    for f in findings[:60]:
+        finding_lines.append(
+            f"- [{f.get('category','')}] {f.get('label','')} "
+            f"@ L{f.get('line','?')}: \"{(f.get('text','') or '').strip()}\""
+        )
+    findings_block = "\n".join(finding_lines)
+
+    voice = getattr(site_context, "voice", {}) or {}
+    voice_note = (
+        f"\nKeep this voice — tone: {voice.get('tone','')}; "
+        f"persona: {voice.get('persona','')}."
+        if voice else ""
+    )
+
+    system_prompt = (
+        "You are a line editor removing AI-slop from a publish-ready article. "
+        "Rewrite ONLY to eliminate the listed slop. Keep every fact, number, name, "
+        "quote, citation, link and heading exactly. Do not touch frontmatter, code "
+        "blocks or markdown structure. Keep the author's voice and keep length within "
+        "about 10 percent. Replace stock phrases and vague 'this' with the specific "
+        "thing meant; turn 'not just X, it's Y' into a direct claim; split sentences "
+        "over 35 words; cut filler. Do not introduce new cliches. Return ONLY the "
+        "rewritten markdown, nothing else."
+    )
+    user_message = f"SLOP TO FIX:\n{findings_block}{voice_note}\n\nARTICLE:\n{body}"
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic()
+        model = MODELS.get(
+            os.environ.get("DESLOP_REWRITE_MODEL", "haiku"), MODELS["haiku"]
+        )
+        resp = client.messages.create(
+            model=model,
+            max_tokens=8000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        out = "".join(
+            b.text for b in resp.content if getattr(b, "type", "") == "text"
+        ).strip()
+    except Exception as e:  # noqa: BLE001 — fail open to the fix-only body
+        logger.warning(
+            f"[deslop] rewrite call failed for {article_id} (fail-open): {e}"
+        )
+        return None
+
+    if not out:
+        return None
+    # Reject a rewrite that changed length wildly (truncation / hallucination).
+    ratio = len(out) / max(1, len(body))
+    if ratio < 0.6 or ratio > 1.5:
+        logger.warning(
+            f"[deslop] rewrite for {article_id} rejected: length ratio {ratio:.2f}"
+        )
+        return None
+    return out
+
+
+def deslop_to_target(
+    body: str, article_id: str, site_context: Optional[SiteContext] = None
+) -> tuple[str, Optional[int]]:
+    """
+    Drive the slop score below DESLOP_TARGET_SCORE: run the deterministic
+    fix-loop, then (if still at/above target) an LLM rewrite loop. Each rewrite
+    is followed by the fix-loop and kept only if it lowers the score; stops at
+    the target, when a rewrite fails to help, or at DESLOP_MAX_REWRITES.
+
+    Env: DESLOP_REWRITE (default "1"), DESLOP_MAX_REWRITES (default "3").
+    """
+    body, score = deslop_body(body, article_id)
+    target = int(os.environ.get("DESLOP_TARGET_SCORE", "15"))
+    rewrite_on = os.environ.get("DESLOP_REWRITE", "1").lower() in ("1", "true", "yes")
+    max_rewrites = int(os.environ.get("DESLOP_MAX_REWRITES", "3"))
+
+    passes = 0
+    while rewrite_on and score is not None and score >= target and passes < max_rewrites:
+        candidate = deslop_rewrite_once(body, article_id, site_context)
+        passes += 1
+        if not candidate:
+            break  # unavailable or unsafe — keep the best body so far
+        cleaned, new_score = deslop_body(candidate, article_id)
+        if new_score is None or new_score >= score:
+            break  # rewrite didn't help — keep the prior (>=) body
+        body, score = cleaned, new_score
+        logger.info(f"[deslop] {article_id}: rewrite pass {passes} -> score {score}")
+
+    return body, score
 
 
 # ── Publish Payload ─────────────────────────────────────────
@@ -180,6 +423,12 @@ def build_disk_frontmatter(payload: dict, site_context: SiteContext) -> dict:
     return fm
 
 
+def build_filename(payload: dict) -> str:
+    """Build the on-disk filename for an article: YYYY-MM-DD-slug.md."""
+    slug = payload["slug"] or "untitled"
+    return f"{payload['date']}-{slug}.md"
+
+
 def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = False) -> Path:
     """
     Write the article to disk.
@@ -191,9 +440,7 @@ def write_to_disk(payload: dict, site_context: SiteContext, fallback: bool = Fal
         content_root = os.environ.get("CONTENT_ROOT", "sites")
 
     site_id = payload["site_id"]
-    slug = payload["slug"] or "untitled"
-    date = payload["date"]
-    filename = f"{date}-{slug}.md"
+    filename = build_filename(payload)
 
     output_path = Path(content_root) / site_id / "articles" / filename
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -241,6 +488,7 @@ class DepositEngine:
             "published": [],
             "skipped_rewrite": [],
             "skipped_kill": [],
+            "skipped_deslop": [],
             "errors": [],
             "fallback_to_disk": [],
             "total_scanned": len(artifacts),
@@ -271,6 +519,24 @@ class DepositEngine:
             except Exception as e:
                 summary["errors"].append({"article_id": article_id, "error": f"Config load failed: {e}"})
                 logger.error(f"[deposit] ❌ {title}: site config load failed: {e}")
+                continue
+
+            # ── Last step before publishing: deslop ──────────────
+            # Loops the deterministic --fix pass, then an LLM rewrite pass, until
+            # the slop score drops below DESLOP_TARGET_SCORE (default 15).
+            # Anything still at/above that (couldn't be fixed or rewritten to
+            # target) is held, not published. Fails open on tooling/API errors.
+            body, slop_score = deslop_to_target(body, article_id, site_context)
+            deslop_min = int(os.environ.get("DESLOP_TARGET_SCORE", "15"))
+            if slop_score is not None and slop_score >= deslop_min:
+                summary["skipped_deslop"].append({
+                    "article_id": article_id, "title": title,
+                    "slop_score": slop_score, "threshold": deslop_min,
+                })
+                logger.warning(
+                    f"[deposit] 🧹 HELD (deslop): {title} scored {slop_score} "
+                    f">= {deslop_min}; not published"
+                )
                 continue
 
             payload = build_publish_payload(metadata, body, site_context)
@@ -317,15 +583,28 @@ class DepositEngine:
                     if api_article_id:
                         logger.info(f"[deposit] Running P4 gates on {api_article_id}...")
                         p4_result = run_p4_gates(api_article_id, save_results=True)
+                        p4_error = p4_result.get("error")
                         record["p4_passed"] = p4_result.get("passed", False)
                         record["p4_failures"] = p4_result.get("failure_reasons", [])
 
-                        if p4_result.get("passed"):
+                        if p4_error:
+                            # P4 could not RUN (e.g. site-empire import failed) — an
+                            # infrastructure failure, not a content QA failure. Surface it
+                            # loudly instead of letting it masquerade as a gate failure
+                            # with "0 issues". Article stays parked for review either way.
+                            logger.error(
+                                f"[deposit] ❌ P4 gates DID NOT RUN for {api_article_id}: {p4_error}"
+                            )
+                            record["p4_error"] = p4_error
+                            record["final_status"] = "pending_review"
+                        elif p4_result.get("passed"):
                             logger.info(f"[deposit] ✅ P4 gates passed")
                             # Update status if P4 passed and LLM score is good
                             qa_score = payload.get("qa_score", 0)
+                            # threshold=None → update_article_status falls back to
+                            # the site's publish_threshold (per-site config is authoritative).
                             status_result = update_article_status(
-                                api_article_id, qa_score, threshold=8.0
+                                api_article_id, qa_score, threshold=None
                             )
                             record["final_status"] = status_result.get("status")
                             record["status_action"] = status_result.get("action")
