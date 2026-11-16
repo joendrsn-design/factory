@@ -2,41 +2,47 @@
 ============================================================
 ARTICLE FACTORY — MODEL CONFIGURATION
 ============================================================
-Centralized model configuration to avoid hardcoded model IDs.
-Update this file when Anthropic releases new models.
+Single source of truth for model IDs, per-module defaults, and pricing.
+
+The pipeline modules import MODELS from here (write.py, research.py, qa.py) so
+there is ONE place to bump models. Per-article-type overrides live in the site
+YAML (`article_types[].model_override`) and are applied by WriteModule.get_model().
+
+Model IDs verified against the Claude API model reference (2026-11). Use the
+exact alias strings — do NOT append date suffixes.
 ============================================================
 """
 
-# Model IDs - update when new versions are released
+# Current model IDs (aliases — never append a date suffix)
 MODELS = {
-    # Fast, cheap model for simple tasks
-    "haiku": "claude-haiku-4-5-20251001",
-
-    # Balanced model for research and QA
-    "sonnet": "claude-sonnet-4-5-20251022",
-
-    # Best model for writing
-    "opus": "claude-opus-4-5-20251101",
+    # Fast, cheap — simple tasks
+    "haiku": "claude-haiku-5-5",
+    # Balanced — research, QA, and ALL article writing (reflections + deep dives)
+    "sonnet": "claude-sonnet-5-5",
+    # Most capable — available for premium per-type overrides (not a default)
+    "opus": "claude-opus-5-5",
 }
 
-# Default model assignments per module
-# Override in site config if needed
+# Default model tier per module. Per-site/article-type overrides can still win
+# via `model_override` in the site config (see WriteModule.get_model).
 MODULE_DEFAULTS = {
     "topic_generator": "haiku",
     "research": "sonnet",
     "expansion": "haiku",
     "planning": "haiku",
-    "write": "opus",
+    "write": "sonnet",
     "preqa": "haiku",
     "qa": "sonnet",
 }
 
-# Cost estimates per 1K tokens (input/output) in cents
-# Used for tracking and budgeting
+# Cost per 1K tokens, in CENTS (input, output). Source: Claude API pricing.
+#   Opus 5.5    $4 / $20 per 1M     ->  0.4¢  / 2.0¢  per 1K
+#   Sonnet 5.5  $2 / $10 per 1M     ->  0.2¢  / 1.0¢  per 1K
+#   Haiku 5.5   $0.10 / $0.50 per 1M ->  0.01¢ / 0.05¢ per 1K
 COST_PER_1K_TOKENS = {
-    "haiku": {"input": 0.025, "output": 0.125},
-    "sonnet": {"input": 0.3, "output": 1.5},
-    "opus": {"input": 1.5, "output": 7.5},
+    "haiku": {"input": 0.01, "output": 0.05},
+    "sonnet": {"input": 0.2, "output": 1.0},
+    "opus": {"input": 0.4, "output": 2.0},
 }
 
 

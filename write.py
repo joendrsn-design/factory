@@ -367,12 +367,15 @@ RULES:
 """
 
 
+from models_config import MODELS
+
+
 # ── Write Module ────────────────────────────────────────────
 
 class WriteModule(BaseModule):
 
     module_name = "write"
-    model = "claude-opus-4-7"  # Default, can be overridden per article type
+    model = MODELS["sonnet"]  # default for all writing (reflections + deep dives); per-type override in get_model
     input_module = "planning"
     max_retries = 2
     default_max_tokens = 8192

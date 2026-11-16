@@ -29,6 +29,15 @@ voice:
   pov: second_person_instructional
   reading_level: grade_8
 article_types:
+- type_id: reflection
+  label: Daily Reflection
+  description: Short daily reflection on a source passage or idea
+  research_depth: shallow
+  word_count_min: 250
+  word_count_max: 600
+  frequency: daily
+  enabled: true
+  model_override: claude-sonnet-5-5   # Sonnet 5.5 — current-gen, cheap
 - type_id: deep_dive
   label: Deep Dive
   description: Long-form, research-heavy article

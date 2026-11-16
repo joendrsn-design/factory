@@ -440,12 +440,15 @@ def build_site_checks(site_context: SiteContext, article_type: dict) -> str:
     return "\n".join(lines)
 
 
+from models_config import MODELS
+
+
 # ── QA Module ───────────────────────────────────────────────
 
 class QAModule(BaseModule):
 
     module_name = "qa"
-    model = "claude-sonnet-4-6"  # Better instruction-following for structured JSON
+    model = MODELS["sonnet"]  # better instruction-following for structured JSON
     input_module = "write"
     max_retries = 1  # QA itself doesn't retry
     default_max_tokens = 2048

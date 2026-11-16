@@ -346,10 +346,13 @@ class ResearchVault:
 DEFAULT_RESEARCH_DEPTH = "moderate"
 
 
+from models_config import MODELS
+
+
 class ResearchModule(BaseModule):
 
     module_name = "research"
-    model = "claude-sonnet-4-5-20250929"
+    model = MODELS["sonnet"]
     input_module = "topic_generator"
     max_retries = 2
     default_max_tokens = 4096
