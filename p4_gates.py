@@ -62,7 +62,11 @@ def get_supabase_client():
 
     # Try Next.js style env vars first (what site-empire uses)
     url = os.environ.get('NEXT_PUBLIC_SUPABASE_URL') or os.environ.get('SUPABASE_URL')
-    key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_KEY')
+    key = (
+        os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+        or os.environ.get('SUPABASE_SERVICE_KEY')  # Factory's .env uses this name
+        or os.environ.get('SUPABASE_KEY')
+    )
 
     if not url or not key:
         raise ValueError(
@@ -150,7 +154,7 @@ def run_p4_gates(article_id: str, save_results: bool = True) -> dict:
     return result
 
 
-def update_article_status(article_id: str, qa_score: float, threshold: float) -> dict:
+def update_article_status(article_id: str, qa_score: float, threshold: float = None) -> dict:
     """
     Update article status based on P4 gates + LLM QA score.
 
@@ -243,7 +247,8 @@ def main():
         help="Update article status after running gates"
     )
     parser.add_argument("--qa-score", type=float, help="LLM QA score for status update")
-    parser.add_argument("--threshold", type=float, default=8.0, help="Publish threshold")
+    parser.add_argument("--threshold", type=float, default=None,
+                        help="Publish threshold (default: use the site's publish_threshold)")
 
     args = parser.parse_args()
 

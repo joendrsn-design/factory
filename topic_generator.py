@@ -53,6 +53,9 @@ from artifacts import (
 
 logger = logging.getLogger("article_factory.topic_generator")
 
+# Warn once (not per candidate) when semantic dedup is unavailable and disabled.
+_dedup_fallback_warned = False
+
 
 # ── Publishing History ──────────────────────────────────────
 
@@ -111,7 +114,15 @@ class PublishingHistory:
                 if c.similarity >= threshold
             ]
         except Exception as e:
-            logger.debug(f"[topic_gen] Semantic dedup unavailable: {e}")
+            global _dedup_fallback_warned
+            if not _dedup_fallback_warned:
+                logger.warning(
+                    "[topic_gen] Semantic dedup unavailable — topic de-duplication is "
+                    f"DISABLED (duplicates may pass through). Cause: {e}"
+                )
+                _dedup_fallback_warned = True
+            else:
+                logger.debug(f"[topic_gen] semantic dedup unavailable: {e}")
             return []
 
     def get_coverage_by_cluster(

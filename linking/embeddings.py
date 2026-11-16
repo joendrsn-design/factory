@@ -95,6 +95,10 @@ class EmbeddingService:
             logger.error(f"Failed to generate embedding: {e}")
             return None
 
+    def embed(self, text: str) -> Optional[list[float]]:
+        """Alias for embed_text, for callers that expect a `.embed()` method."""
+        return self.embed_text(text)
+
     def embed_article(self, title: str, body: str) -> Optional[list[float]]:
         """
         Generate embedding for an article.
@@ -174,6 +178,18 @@ class EmbeddingService:
             return False
 
         return self.store_embedding(article_id, embedding)
+
+
+# Shared singleton, so callers (research vault, topic dedup) reuse one client.
+_default_embedder: Optional["EmbeddingService"] = None
+
+
+def get_embedder() -> "EmbeddingService":
+    """Return a shared EmbeddingService instance."""
+    global _default_embedder
+    if _default_embedder is None:
+        _default_embedder = EmbeddingService()
+    return _default_embedder
 
 
 # CLI for testing

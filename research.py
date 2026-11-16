@@ -76,6 +76,9 @@ from artifacts import (
 
 logger = logging.getLogger("article_factory.research")
 
+# Warn once (not per topic-pair) when semantic matching degrades to word-overlap.
+_vault_fallback_warned = False
+
 
 # ── Web Search Providers ────────────────────────────────────
 # Swappable. Add new providers by implementing search(query, max_results) → list[dict]
@@ -309,7 +312,15 @@ class ResearchVault:
             sim = np.dot(emb_a, emb_b) / (np.linalg.norm(emb_a) * np.linalg.norm(emb_b))
             return sim >= threshold
         except Exception as e:
-            logger.debug(f"[vault] Embedding match unavailable, using word overlap: {e}")
+            global _vault_fallback_warned
+            if not _vault_fallback_warned:
+                logger.warning(
+                    "[vault] Semantic topic matching unavailable — degraded to weaker "
+                    f"word-overlap fallback (further occurrences logged at debug). Cause: {e}"
+                )
+                _vault_fallback_warned = True
+            else:
+                logger.debug(f"[vault] word-overlap fallback: {e}")
             return self._word_overlap_match(topic_a, topic_b)
 
     def _word_overlap_match(self, topic_a: str, topic_b: str) -> bool:
