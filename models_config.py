@@ -17,10 +17,15 @@ exact alias strings — do NOT append date suffixes.
 MODELS = {
     # Fast, cheap — simple tasks
     "haiku": "claude-haiku-5-5",
-    # Balanced — research, QA, and ALL article writing (reflections + deep dives)
-    "sonnet": "claude-sonnet-5-5",
+    # Balanced — research, QA, and ALL article writing (reflections + deep dives).
+    # Held at 4.6: the 5.x models think-by-default and can't disable it, which
+    # starves the structured JSON output this pipeline's parsers expect (research
+    # truncated on 5.5 even at 16k tokens + effort:low + between_tools). 4.6 has
+    # thinking off by default and works cleanly. Revisit 5.x with per-call effort
+    # tuning if desired.
+    "sonnet": "claude-sonnet-4-6",
     # Most capable — available for premium per-type overrides (not a default)
-    "opus": "claude-opus-5-5",
+    "opus": "claude-opus-4-8",
 }
 
 # Default model tier per module. Per-site/article-type overrides can still win

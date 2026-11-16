@@ -33,11 +33,11 @@ article_types:
   label: Daily Reflection
   description: Short daily reflection on a source passage or idea
   research_depth: shallow
-  word_count_min: 250
-  word_count_max: 600
+  word_count_min: 400
+  word_count_max: 700
   frequency: daily
   enabled: true
-  model_override: claude-sonnet-5-5   # Sonnet 5.5 — current-gen, cheap
+  model_override: claude-sonnet-4-6   # thinking off by default — reliable with the write parser
 - type_id: deep_dive
   label: Deep Dive
   description: Long-form, research-heavy article

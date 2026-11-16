@@ -355,7 +355,7 @@ class ResearchModule(BaseModule):
     model = MODELS["sonnet"]
     input_module = "topic_generator"
     max_retries = 2
-    default_max_tokens = 4096
+    default_max_tokens = 4096  # research overrides this via get_max_tokens (depth-scaled)
 
     def __init__(self, config_dir: str = "config/sites", vault_dir: str = "pipeline/research_vault"):
         super().__init__(config_dir=config_dir)
@@ -1343,13 +1343,17 @@ The brief should be detailed enough that a writer can produce a full article wit
         article_type = site_context.get_article_type(metadata.get("article_type", ""))
         depth = article_type.get("research_depth", "moderate") if article_type else "moderate"
 
+        # The response carries a JSON metadata block (findings + sources +
+        # statistics) AND a full prose brief, so even "shallow" needs real room —
+        # 2048 truncated the JSON mid-source and broke the parser. Kept <=16k so
+        # the non-streaming call doesn't trip the SDK's large-output guard.
         token_map = {
-            "shallow": 2048,
-            "moderate": 4096,
-            "deep": 6144,
-            "exhaustive": 8192,
+            "shallow": 8000,
+            "moderate": 10000,
+            "deep": 13000,
+            "exhaustive": 16000,
         }
-        return token_map.get(depth, 4096)
+        return token_map.get(depth, 10000)
 
     def run_single(
         self,
