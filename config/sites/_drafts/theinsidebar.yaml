@@ -1,0 +1,93 @@
+# ============================================================================
+# DRAFT — not in the registry. `all_sites()` globs config/sites/*.yaml
+# (non-recursive) and skips subfolders, so this file is INERT until promoted.
+# To activate: move up one dir -> config/sites/theinsidebar.yaml, then run
+# `python provision.py verify --site theinsidebar` and generate content.
+#
+# STATUS: REVIVAL. The sites row, Vercel domain, and BOTH personas already
+# exist in the DB (Marcus Thorne = primary, Nina Castellanos = secondary),
+# content = 0. So reviving = this YAML + content generation. No persona/domain
+# work needed.
+#
+# TWO-SLOT "DAILY BRIEF" MODEL:
+#   - reflection  : evergreen Strat-philosophy, day_of_year cycle, batchable. ENABLED.
+#   - market_note : same-day price action. DISABLED pending phase 2 (needs a
+#                   scheduled same-day generator, live data, disclaimers, and a
+#                   human review gate). Do NOT auto-post trade setups.
+# ============================================================================
+
+site_id: theinsidebar
+site_name: The Inside Bar
+domain: theinsidebar.com
+tier: daily
+niche: daily-finance          # provision via `--niche finance` (preset exists); label kept descriptive here
+template: daily-page
+
+categories:
+- slug: reflections
+  label: Reflections
+  description: Daily reflections on trading discipline and the philosophy behind The Strat
+- slug: the-strat
+  label: The Strat
+  description: The methodology itself — inside bars, broadening formations, timeframe continuity
+- slug: market-structure
+  label: Market Structure
+  description: How price actually moves — scenarios, not predictions
+- slug: psychology
+  label: Psychology
+  description: Discipline, patience, and the trader's relationship to risk
+- slug: setups
+  label: Setups                # surface for phase-2 market_note content; empty until then
+  description: Educational breakdowns of actionable structures (not advice)
+- slug: commentary
+  label: Commentary
+  description: Analysis and interpretation of recurring market situations
+
+voice:
+  tone: disciplined, plain-spoken, no-hype
+  persona: a seasoned trader who teaches structure over prediction and never sells certainty
+  pov: second_person_instructional
+  reading_level: grade_9
+
+article_types:
+- type_id: reflection
+  label: Daily Reflection
+  description: Short daily reflection on a Strat principle or trading-discipline idea
+  research_depth: none
+  word_count_min: 250
+  word_count_max: 600
+  frequency: daily
+  enabled: true
+- type_id: market_note
+  label: Market Note
+  description: Same-day price-action note (educational framing, not advice). PHASE 2.
+  research_depth: shallow
+  word_count_min: 150
+  word_count_max: 400
+  frequency: daily
+  enabled: false              # <-- keep false until the same-day pipeline + compliance gate exist
+- type_id: deep_dive
+  label: Deep Dive
+  description: Weekly long-form teaching on a methodology or market-structure topic
+  research_depth: shallow
+  word_count_min: 1500
+  word_count_max: 2800
+  frequency: weekly
+  enabled: true
+
+quality:
+  publish_threshold: 8.0       # finance = higher stakes than the wisdom sites
+  rewrite_threshold: 6.5
+  max_rewrites: 2
+
+output:
+  frontmatter_template:
+    site: theinsidebar
+    status: draft
+    author: The Inside Bar
+  filename_pattern: YYYY-MM-DD-{slug}.md
+
+meta:
+  created_at: '2026-11-15T00:00:00Z'
+  provisioned_by: draft (claude) — revival
+  personas_in_db: [marcus-thorne (primary), nina-castellanos]

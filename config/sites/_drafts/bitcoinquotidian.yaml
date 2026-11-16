@@ -1,0 +1,98 @@
+# ============================================================================
+# DRAFT — not in the registry (see note in theinsidebar.yaml). INERT until
+# moved up to config/sites/bitcoinquotidian.yaml.
+#
+# STATUS: NET-NEW. Needs full provisioning:
+#   1. `python provision.py new --site bitcoinquotidian --domain bitcoinquotidian.com --niche finance --template daily-page --name "Bitcoin Quotidian"`
+#   2. Add bitcoinquotidian.com to the Vercel project + configure DNS.
+#   3. CREATE + LINK a persona (the known gap — new sites get none, so every
+#      author-attribution gate fails and all content parks). Persona below is a
+#      PROPOSAL, pending the byline decision (named editor vs house voice).
+#
+# TWO-SLOT "DAILY BRIEF" MODEL: reflection (ENABLED) + market_note (DISABLED, phase 2).
+# ============================================================================
+
+site_id: bitcoinquotidian
+site_name: Bitcoin Quotidian
+domain: bitcoinquotidian.com
+tier: daily
+niche: daily-finance
+template: daily-page
+
+categories:
+- slug: reflections
+  label: Reflections
+  description: Daily reflections on sound money and a low-time-preference life
+- slug: sound-money
+  label: Sound Money
+  description: Monetary history, Austrian economics, and why scarcity matters
+- slug: bitcoin-basics
+  label: Bitcoin Basics
+  description: First-principles explainers — no jargon, no hype, no price predictions
+- slug: self-custody
+  label: Self-Custody
+  description: Keys, security, and the practices of holding your own bitcoin
+- slug: market-note
+  label: Market Note             # surface for phase-2 price-action content
+  description: Same-day price context, framed as education not advice
+- slug: commentary
+  label: Commentary
+  description: Culture, adoption, and the long arc of the technology
+
+voice:
+  tone: measured, skeptical, first-principles
+  persona: a calm educator focused on sound money and self-custody, not price or hype
+  pov: second_person_instructional
+  reading_level: grade_9
+
+article_types:
+- type_id: reflection
+  label: Daily Reflection
+  description: Short daily reflection on sound-money principles or a bitcoin first principle
+  research_depth: none
+  word_count_min: 250
+  word_count_max: 600
+  frequency: daily
+  enabled: true
+- type_id: market_note
+  label: Market Note
+  description: Same-day price-context note (educational framing, not advice). PHASE 2.
+  research_depth: shallow
+  word_count_min: 150
+  word_count_max: 400
+  frequency: daily
+  enabled: false                # <-- keep false until same-day pipeline + disclaimers + review exist
+- type_id: deep_dive
+  label: Deep Dive
+  description: Weekly explainer on monetary history, self-custody, or protocol basics
+  research_depth: shallow
+  word_count_min: 1500
+  word_count_max: 2800
+  frequency: weekly
+  enabled: true
+
+quality:
+  publish_threshold: 8.0
+  rewrite_threshold: 6.5
+  max_rewrites: 2
+
+output:
+  frontmatter_template:
+    site: bitcoinquotidian
+    status: draft
+    author: Bitcoin Quotidian
+  filename_pattern: YYYY-MM-DD-{slug}.md
+
+# PROPOSED persona (create + link before generating content; pending byline decision):
+#   slug: cal-rhodes
+#   display_name: Cal Rhodes
+#   role_label: Writer
+#   cluster: finance-daily
+#   tier: 1
+#   expertise: [sound money, bitcoin, monetary history, self-custody, Austrian economics]
+#   voice: plain, skeptical, low-time-preference; teaches principles, never predicts price;
+#          no hype, no financial advice, no name-dropping; the idea carries the authority.
+meta:
+  created_at: '2026-11-15T00:00:00Z'
+  provisioned_by: draft (claude) — net-new
+  persona_status: NOT created — must seed + link (see proposal above)
