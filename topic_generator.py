@@ -177,7 +177,9 @@ class PublishingHistory:
 class TopicGenerator:
 
     model = "claude-haiku-4-5-20251001"
-    default_max_tokens = 2048
+    # 2048 truncated the JSON mid-string at ~20 topics (unterminated-string parse
+    # errors → 0 topics generated). 8192 comfortably fits a 20+ topic batch.
+    default_max_tokens = 8192
 
     def __init__(self, config_dir: str = "config/sites", published_dir: str = ""):
         self.loader = SiteLoader(config_dir=config_dir)
