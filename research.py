@@ -1287,7 +1287,7 @@ The brief should be detailed enough that a writer can produce a full article wit
         client = anthropic.Anthropic()
         logger.info(f"[{self.module_name}] Submitting batch of {len(requests)} requests...")
 
-        batch = client.batches.create(requests=requests)
+        batch = client.messages.batches.create(requests=requests)
         batch_id = batch.id
         logger.info(f"[{self.module_name}] ✅ Batch submitted: {batch_id}")
 

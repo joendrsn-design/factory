@@ -215,7 +215,7 @@ class BaseModule(ABC):
                 f.write(json.dumps(req) + "\n")
 
         # Submit to Anthropic Batch API
-        batch = client.batches.create(
+        batch = client.messages.batches.create(
             requests=requests,
         )
 
@@ -259,7 +259,7 @@ class BaseModule(ABC):
         start_time = time.time()
 
         while True:
-            batch = client.batches.retrieve(batch_id)
+            batch = client.messages.batches.retrieve(batch_id)
 
             if batch.processing_status == "ended":
                 logger.info(f"[{self.module_name}] Batch complete!")
@@ -285,7 +285,7 @@ class BaseModule(ABC):
         # Process results
         results_summary = []
 
-        for result in client.batches.results(batch_id):
+        for result in client.messages.batches.results(batch_id):
             article_id = result.custom_id
 
             original = original_map.get(article_id)

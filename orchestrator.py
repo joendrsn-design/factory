@@ -1058,7 +1058,7 @@ class AutonomousBatchPipeline:
 
         # Submit batch
         try:
-            batch = client.batches.create(requests=requests_list)
+            batch = client.messages.batches.create(requests=requests_list)
             batch_id = batch.id
             logger.info(f"[autonomous] Submitted {stage} batch: {batch_id}")
 
@@ -1124,7 +1124,7 @@ class AutonomousBatchPipeline:
             logger.info(f"[autonomous] Checking {stage} batch {batch_id} for {site_key}")
 
             try:
-                batch = client.batches.retrieve(batch_id)
+                batch = client.messages.batches.retrieve(batch_id)
 
                 if batch.processing_status == "ended":
                     logger.info(f"[autonomous] Batch {batch_id} completed!")
@@ -1273,7 +1273,7 @@ class AutonomousBatchPipeline:
 
         collected = 0
 
-        for result in client.batches.results(batch_id):
+        for result in client.messages.batches.results(batch_id):
             article_id = result.custom_id
 
             if article_id not in original_map:

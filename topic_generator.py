@@ -797,7 +797,7 @@ RULES:
             return None
 
         client = anthropic.Anthropic()
-        batch = client.batches.create(requests=requests)
+        batch = client.messages.batches.create(requests=requests)
         batch_id = batch.id
 
         # Save manifest with mapping info
