@@ -1041,7 +1041,20 @@ class AutonomousBatchPipeline:
             article_id = meta.get("article_id", "")
             site_context = self.loader.load(site_key)
 
-            system_prompt, user_message = module.build_prompt(meta, body, site_context)
+            # The research stage must run web search BEFORE batching: only the
+            # synthesis LLM call is batched (keeps the 50% discount), but it needs
+            # real sources embedded in the prompt or the batch yields sourceless,
+            # hallucination-prone research. Mirrors ResearchModule.submit(); search
+            # is fast+synchronous. Other stages take no search_results.
+            if stage == "research" and hasattr(module, "_do_web_search"):
+                article_type = site_context.get_article_type(meta.get("article_type", ""))
+                depth = article_type.get("research_depth", "moderate") if article_type else "moderate"
+                search_results = module._do_web_search(meta.get("topic", ""), depth, site_context)
+                system_prompt, user_message = module.build_prompt(
+                    meta, body, site_context, search_results
+                )
+            else:
+                system_prompt, user_message = module.build_prompt(meta, body, site_context)
 
             requests_list.append({
                 "custom_id": article_id,
