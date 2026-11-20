@@ -342,7 +342,12 @@ def build_publish_payload(metadata: dict, body: str, site_context: SiteContext) 
     # Use None for optional empty strings (cleaner API payload)
     featured_image = metadata.get("featured_image", "") or None
     meta_description = _clamp_len(metadata.get("meta_description", ""), 155) or None
-    seo_title = _clamp_len(metadata.get("seo_title", ""), 60) or None
+    seo_title = _clamp_len(metadata.get("seo_title", ""), 60)
+    if not seo_title or len(seo_title) < 50:
+        # Planner sometimes emits a too-short SEO title (<50 fails the title gate).
+        # The display title is longer — clamp it to <=60 to land a compliant 50-60.
+        seo_title = _clamp_len(metadata.get("title", ""), 60)
+    seo_title = seo_title or None
     article_type = metadata.get("article_type", "") or None
     qa_feedback = metadata.get("feedback", "") or None
 

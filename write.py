@@ -765,8 +765,12 @@ Write the complete article now. Markdown only."""
         if target:
             if word_count < target * 0.85:
                 return False, f"Article under target: {word_count}/{target} words ({word_count/target*100:.0f}%, need 85%+)"
-            if word_count > target * 1.30:
-                return False, f"Article over target: {word_count}/{target} words ({word_count/target*100:.0f}%, max 130%)"
+            # 1.30 lost good articles outright: reflections naturally run ~720-750
+            # against a 550 target (=715 cap), so a slight overshoot killed the
+            # whole article (0 published) rather than queueing it. 1.40 (770) fits
+            # the model's natural length; deslop + QA still police real quality.
+            if word_count > target * 1.40:
+                return False, f"Article over target: {word_count}/{target} words ({word_count/target*100:.0f}%, max 140%)"
 
         # Check for H1 title
         if not re.search(r"^#\s+", body, re.MULTILINE):
