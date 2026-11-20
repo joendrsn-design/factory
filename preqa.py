@@ -73,15 +73,17 @@ CHECK THESE THINGS ONLY (be fast, not thorough):
 1. STRUCTURE: Does it have an H1 title and at least 2 H2 sections?
 2. LENGTH: Is word count within 50% of target range? (Very lenient)
 3. ON-TOPIC: Does the article appear to be about the expected topic?
-4. COMPLETENESS: No obviously empty sections, no "TODO" placeholders, no "[insert here]"
-5. FORMATTING: No broken markdown, no raw HTML, no obvious errors
+4. COMPLETENESS: No obviously empty sections, and no literal unfilled placeholders
+   such as "TODO", "[insert here]", "[XX]", "XXX", or "{{ }}".
+5. FORMATTING: No raw HTML dumps, no obviously garbled text.
 
-DO NOT CHECK:
-- Voice quality (full QA does this)
-- Citation quality (full QA does this)
-- AI detection (full QA does this)
-- Factual accuracy (full QA does this)
-- SEO optimization (full QA does this)
+DO NOT CHECK (these are full QA's job — do NOT fail an article for them):
+- Voice quality, citation quality, AI detection, factual accuracy, SEO.
+- Internal/relative markdown links like [text](/some-slug) — these are VALID,
+  intentional internal links the writer is required to include. They are NOT
+  broken links or placeholders. Never fail an article for containing them;
+  link targets are validated later, not here.
+- Whether every link resolves. You cannot check that; do not guess.
 
 Respond with ONLY this JSON (no markdown, no explanation):
 {{
@@ -91,17 +93,42 @@ Respond with ONLY this JSON (no markdown, no explanation):
 
 Be LENIENT. When in doubt, PASS. Only FAIL obvious problems."""
 
+        # PreQA only needs enough to judge structure/topic/completeness, but a
+        # raw body[:3000] slice lands mid-word/mid-header — and the model reads
+        # that mid-word cut as a truncated/corrupted article and FAILs every
+        # piece over ~450 words before it can reach real QA. Cut on a whitespace
+        # boundary and mark the cutoff explicitly so the model knows it is
+        # deliberate, not corruption. 16k chars (~4k haiku tokens, a fraction of
+        # a cent) sends full reflections and most deep dives whole.
+        CAP = 16000
+        if len(body) <= CAP:
+            excerpt = body
+            truncation_note = ""
+        else:
+            cut = body.rfind("\n", 0, CAP)
+            if cut < CAP * 0.5:
+                cut = body.rfind(" ", 0, CAP)
+            if cut <= 0:
+                cut = CAP
+            excerpt = body[:cut].rstrip() + (
+                "\n\n[... article continues; cleanly truncated here for length — "
+                "treat the article as complete, not corrupted ...]"
+            )
+            truncation_note = (
+                "\n(Only the first part of the article is shown, cut cleanly at a "
+                "boundary. Judge structure and topic from what you see; do NOT "
+                "fail it for ending early — the full article continues.)"
+            )
+
         user = f"""Quick check this article:
 
 TITLE: {metadata.get('title', 'Unknown')}
 EXPECTED TOPIC: {metadata.get('topic', 'Unknown')}
 
 ---
-{body[:3000]}
+{excerpt}
 ---
-
-(Article truncated for speed. Check structure and topic from what you see.)
-
+{truncation_note}
 Quick verdict - JSON only:"""
 
         return system, user

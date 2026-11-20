@@ -118,11 +118,18 @@ class TavilyProvider(SearchProvider):
 
         results = []
         for item in response.get("results", []):
+            # Tavily sends explicit nulls for content/raw_content. .get(k, "")
+            # returns None (not "") when the key is present-but-null, and
+            # None[:500] raises "'NoneType' object is not subscriptable" — which
+            # the caller catches and discards the whole query's results. Coerce
+            # every field to a string before slicing.
+            snippet = item.get("content") or ""
+            content = item.get("raw_content") or item.get("content") or ""
             results.append({
-                "title": item.get("title", ""),
-                "url": item.get("url", ""),
-                "snippet": item.get("content", "")[:500],
-                "content": item.get("raw_content", item.get("content", ""))[:3000],
+                "title": item.get("title") or "",
+                "url": item.get("url") or "",
+                "snippet": snippet[:500],
+                "content": content[:3000],
             })
 
         return results
@@ -152,11 +159,13 @@ class BraveProvider(SearchProvider):
 
         results = []
         for item in data.get("web", {}).get("results", []):
+            # Same null-vs-missing hazard as Tavily above: coerce before slicing.
+            desc = item.get("description") or ""
             results.append({
-                "title": item.get("title", ""),
-                "url": item.get("url", ""),
-                "snippet": item.get("description", "")[:500],
-                "content": item.get("description", "")[:3000],
+                "title": item.get("title") or "",
+                "url": item.get("url") or "",
+                "snippet": desc[:500],
+                "content": desc[:3000],
             })
 
         return results
