@@ -324,7 +324,30 @@ def build_citation_instructions(site_context: SiteContext, article_type: dict, s
     Only included when the article type requires citations.
     """
     if not article_type.get("citation_required", False):
-        return "\nCITATIONS: Not required for this article type. Write naturally without inline references."
+        if not sources:
+            return "\nCITATIONS: Not required for this article type. Write naturally without inline references."
+        source_lines = []
+        for i, src in enumerate(sources, 1):
+            title = src.get("title", f"Source {i}")
+            url = src.get("url", "")
+            tier = src.get("tier", "")
+            source_lines.append(f"  - {title} — {url}  (tier {tier})")
+        sources_block = "\n".join(source_lines)
+        return f"""
+CITATIONS: Full inline citations are NOT required for this article type — write
+naturally, with no [1][2] markers and no References section. BUT you MUST weave
+exactly one AUTHORITATIVE source into the body as an inline markdown link, placed
+where it already reads naturally (e.g. "a [2000 study on choice overload](https://doi.org/...)
+found that..."). This single outbound link is REQUIRED for the article to publish.
+
+An AUTHORITATIVE source is a peer-reviewed journal or DOI link, a university
+(.edu), an academic press, or a recognized institution — NOT a blog or a general
+website. Pick the most authoritative entry from the list below and link it once.
+Do not fabricate a URL; use one of these exactly:
+
+AVAILABLE SOURCES (prefer journals / DOI / .edu):
+{sources_block}
+"""
 
     if not sources:
         return "\nCITATIONS: Required but no sources provided. Use your knowledge and note claims that should be sourced."
@@ -355,9 +378,13 @@ CITATION FORMAT:
 - When paraphrasing, still cite the source
 
 REFERENCES SECTION:
-At the end of the article, include a "## References" section listing all cited sources:
-1. Source Title. URL
-2. Source Title. URL
+At the end of the article, include a "## References" section listing all cited
+sources. Format every entry as a markdown link so the source is clickable:
+1. [Source Title](URL)
+2. [Source Title](URL)
+At least one reference MUST link to an authoritative source (a journal/DOI,
+university, or recognized institution) — this is required for the article to
+publish.
 
 RULES:
 - Cite at least 3 sources in the article body

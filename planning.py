@@ -328,7 +328,7 @@ Respond with ONLY valid JSON (no markdown fences, no explanation):
     "slug": "url-friendly-slug",
     "category": "best-fit-category-slug",
     "seo_title": "SEO-optimized title for search results (50-60 chars, primary keyword near front)",
-    "meta_description": "Meta description summarizing article content (150-160 chars, primary keyword once)",
+    "meta_description": "Meta description summarizing the article (HARD RANGE 140-155 chars — count them; under 140 or over 155 fails publish — include the primary keyword once)",
     "target_keywords": ["primary", "secondary"],
     "target_word_count": {word_mid},
     "internal_links": ["relevant link targets"],

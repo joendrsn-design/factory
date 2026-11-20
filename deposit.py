@@ -308,6 +308,23 @@ def deslop_to_target(
 
 # ── Publish Payload ─────────────────────────────────────────
 
+def _clamp_len(text: str, max_len: int) -> str:
+    """Trim an SEO field to <= max_len on a word boundary.
+
+    The planner runs on haiku, which can't reliably hit exact character ranges
+    (seo_title <=60, meta_description <=155), so overshoots were failing the P4
+    length gates and dropping clean articles to pending_review. Clamp here so the
+    stored field is always within range; truncating an over-max value lands it
+    just under the ceiling (still above the min). No-op when already in range.
+    """
+    if not text or len(text) <= max_len:
+        return text
+    cut = text.rfind(" ", 0, max_len + 1)
+    if cut < max_len * 0.6:  # no sensible word boundary near the end — hard cut
+        cut = max_len
+    return text[:cut].rstrip(" ,;:—-").rstrip()
+
+
 def build_publish_payload(metadata: dict, body: str, site_context: SiteContext) -> dict:
     """
     Build the publish payload for Site Empire API.
@@ -324,8 +341,8 @@ def build_publish_payload(metadata: dict, body: str, site_context: SiteContext) 
 
     # Use None for optional empty strings (cleaner API payload)
     featured_image = metadata.get("featured_image", "") or None
-    meta_description = metadata.get("meta_description", "") or None
-    seo_title = metadata.get("seo_title", "") or None
+    meta_description = _clamp_len(metadata.get("meta_description", ""), 155) or None
+    seo_title = _clamp_len(metadata.get("seo_title", ""), 60) or None
     article_type = metadata.get("article_type", "") or None
     qa_feedback = metadata.get("feedback", "") or None
 
