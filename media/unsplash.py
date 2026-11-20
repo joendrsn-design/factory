@@ -254,13 +254,26 @@ class UnsplashClient:
         Returns:
             Tuple of (image_bytes, photo_metadata) or (None, None)
         """
-        photos = self.search(query, orientation=orientation, per_page=5)
-        if not photos:
-            logger.warning(f"No photos found for query '{query}'")
-            return None, None
+        # Abstract multi-word queries (e.g. philosophy titles like "marcus
+        # aurelius comfort smallness reducing") match zero stock photos, while
+        # the first 1-2 words — usually the subject/figure — match fine. Try the
+        # full query, then progressively broader prefixes, before giving up.
+        words = query.split()
+        candidates = [query]
+        if len(words) > 2:
+            candidates.append(" ".join(words[:2]))
+        if len(words) > 1:
+            candidates.append(words[0])
 
-        # Take the first (most relevant) result
-        return self.download(photos[0].id)
+        for q in candidates:
+            photos = self.search(q, orientation=orientation, per_page=5)
+            if photos:
+                if q != query:
+                    logger.info(f"Image query '{query}' had no results; used broader '{q}'")
+                return self.download(photos[0].id)
+
+        logger.warning(f"No photos found for query '{query}' (tried {len(candidates)} variants)")
+        return None, None
 
 
 # CLI for testing
